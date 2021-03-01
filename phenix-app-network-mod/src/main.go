@@ -338,7 +338,14 @@ func applyModification(mod *NetworkMod, topology *TopologySpec) error {
 			return err
 		}
 
-		if len(mod.Hosts) > (totalAddresses - usedAddresses) {
+		// Default to the node count when
+		// the host count is zero
+		hostCount := len(mod.Hosts)
+		if hostCount == 0 {
+			hostCount = len(topology.Nodes)
+		}
+
+		if hostCount > (totalAddresses - usedAddresses) {
 			//logger.Printf("Not enough addresses in %s",mod.Network)
 			return fmt.Errorf("Not enough addresses in %s",mod.Network)
 		}
