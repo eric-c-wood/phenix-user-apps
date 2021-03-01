@@ -7,19 +7,21 @@ the network-mod app.  A list of modifications can be specified where
 interfaces are both added and deleted in the same scenario.  Gateways 
 can be specified when the network needs to reach other networks outside the subnet.
 
-### Add a network to a set of hosts
+### network-mod scenario configuration fields
 **action**:[add,delete]  
 **network**:Optional:ipv4 address/cidr  
-**vlan**:Optional:vlan numeric id
-**alias**:Optional:descriptive name for vlan  
+**vlan**:Optional:vlan numeric id  
+**alias**:Optional:descriptive name for vlan    
 **prefix**:Optional:interface prefix to use. (e.g. eth)  Default is
 `eth`  
-**type**:Optional:interface type to use. Default is `ethernet`
+**type**:Optional:interface type to use. Default is `ethernet`  
 **gateway**:Optional:gateway to use for the subnet.  This should be
-specified when needing to reach other networks outside the subnet 
+specified when needing to reach other networks outside the subnet   
 **hosts**:Optional:list of VMs to apply the action to.  Default is 
 all VMs/hosts when empty.  The `hosts` key should stil be specified in the
-scenario configuration file.
+scenario configuration file.  
+
+### Add a network to a set of hosts
 
 ```
 apiVersion: phenix.sandia.gov/v1
