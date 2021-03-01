@@ -1,8 +1,8 @@
 SHELL := /bin/bash
 
 # Default version number to git commit hash if not set.
-#VER     := $(or $(VER),$(shell git log -1 --format="%h"))
-#COMMIT  := $(or $(COMMIT),$(shell git log -1 --format="%h - %ae"))
+VER     := $(or $(VER),$(shell git log -1 --format="%h"))
+COMMIT  := $(or $(COMMIT),$(shell git log -1 --format="%h - %ae"))
 DATE    := $(shell date -u)
 VERSION := $(VER) (commit $(COMMIT)) $(DATE)
 
