@@ -5,7 +5,7 @@ adding interfaces, the network, vlan, alias, and the set of VMs
 can be specified.  Below are several examples showing how to use
 the network-mod app.  A list of modifications can be specified where
 interfaces are both added and deleted in the same scenario.  Gateways 
-can be when the network needs to reach other networks outside the subnet.
+can be specified when the network needs to reach other networks outside the subnet.
 
 ### Add a network to a set of hosts
 **action**:`[add,delete]`  
@@ -16,7 +16,7 @@ can be when the network needs to reach other networks outside the subnet.
 **type**:`Optional:interface type to use.`  
 **gateway**:`Optional:gateway to use for the subnet.  This should be
 specified when needing to reach other networks outside the subnet`  
-**hosts**:`Optional:list of VMs to apply action to`  
+**hosts**:`Optional:list of VMs to apply the action to`  
 
 ```
 apiVersion: phenix.sandia.gov/v1
@@ -70,7 +70,7 @@ spec:
 ### Remove a network from all matching hosts
 A network can be removed from all matching hosts
 by specifying either the network/subnet or the 
-vlan alias
+vlan alias.  
 
 ```
 apiVersion: phenix.sandia.gov/v1
