@@ -424,9 +424,10 @@ func addInterface(node *Node,mod *NetworkMod,ipv4 *ipV4Network) error {
 		Name:name,
 		VLAN:mod.Alias,
 		Address:address,
-		Mask:mask,
-		Proto:"static",
+		Mask:mask,		
 		Gateway:mod.Gateway,
+		Proto:"static",
+		Type:mod.Type,
 	}
 
 	// Add the interface to the array/slice of interfaces
@@ -447,7 +448,7 @@ func removeInterface(ifaces []Interface,index int) []Interface {
 		return ifaces
 	}	
 
-	// TODO if interfaces is equal to 1, should
+	// TODO if there is only one interface remaining, should
 	// we allow the last interface to be removed?
 
 	return append(ifaces[:index],ifaces[index+1:]...)
@@ -496,7 +497,7 @@ func getAddressesUsedCount(subnet string,nodes []*Node) (int,error) {
 	_,refNet,err := net.ParseCIDR(subnet)
 				
 	if err != nil {
-		return 0,fmt.Errorf("Unable to parse network:%v",subnet)
+		return -1,fmt.Errorf("Unable to parse network:%v",subnet)
 	}	
 
 	used := make(map[string]bool)
