@@ -10,7 +10,7 @@ GOSOURCES   := $(shell find . \( -name '*.go' \))
 
 all: clean bin/phenix-app-network-mod
 clean:
-	$(RM) phenix-app-network-mod/bin
+	$(RM) bin/phenix-app-network-mod
 
 bin/phenix-app-network-mod: $(GOSOURCES)	
 	mkdir -p bin
