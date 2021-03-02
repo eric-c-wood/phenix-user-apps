@@ -97,7 +97,8 @@ func (this *ipv4Network) getNextAddress(addressesUsed map[uint32]bool) string {
 			return ""
 		}
 
-		if _,ok := addressesUsed[addressStart]; !ok {			
+		if _,ok := addressesUsed[addressStart]; !ok {	
+			this.lastAddressUsed = addressStart		
 			return uintToAddress(addressStart)
 		}
 		
