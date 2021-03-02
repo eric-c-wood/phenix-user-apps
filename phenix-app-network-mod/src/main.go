@@ -15,6 +15,7 @@ import (
 
 var (
 	vlansUsed 	   map[string]bool	
+	vlanIdsUsed	   map[int]bool
 	addressesUsed  map[uint32]bool
 	ifaceRe = regexp.MustCompile(`(?i)([a-z]+)(\d+)`)	
 )
@@ -28,6 +29,9 @@ type NetworkMod struct {
 	Type		string	`json:"type" mapstructure:"type"`
 	Gateway		string	`json:"gateway" mapstructure:"gateway"`
 	Hosts  	   []string `json:"hosts" mapstructure:"hosts"`
+
+	// Internal use to test for address containment
+	ipv4Net    *ipv4Network
 }
 
 type NetworkMods struct {
@@ -120,8 +124,8 @@ func configure(exp *Experiment) error {
 		}
 
 		// Make sure the gateway is in the same subnet
-		if len(mod.Gateway) > 0 {
-			if check,err := isInSubnet(mod.Network,mod.Gateway); !check {
+		if len(mod.Gateway) > 0 && mod.ipv4Net != nil {
+			if check,err := mod.ipv4Net.contains(mod.Gateway); !check {
 				if err != nil {
 					return err
 				}
@@ -145,6 +149,7 @@ func initUsedTables(topology *TopologySpec) {
 	nodes := topology.Nodes
 	vlansUsed = make(map[string]bool)
 	addressesUsed = make(map[uint32]bool)
+	vlanIdsUsed = make(map[int]bool)
 
 	for _,node := range nodes {
 
@@ -153,7 +158,7 @@ func initUsedTables(topology *TopologySpec) {
 				vlansUsed[iface.VLAN] = true
 			}
 
-			decAddress := addressToBinary(iface.Address)
+			decAddress := addressToUint(iface.Address)
 
 			if _,ok := addressesUsed[decAddress]; !ok {
 				addressesUsed[decAddress] = true
@@ -176,6 +181,9 @@ func addDefaults(mod *NetworkMod) {
 		mod.Network = "172.16.0.0/16"
 	}
 
+	// Construct once per mod
+	mod.ipv4Net = newIPv4Network(mod.Network)
+
 	// If no VLAN alias is provied, try
 	// to find an available alias
 	if len(mod.Alias) == 0 {
@@ -197,9 +205,15 @@ func addDefaults(mod *NetworkMod) {
 
 func addVLANAlias(mod *NetworkMod,vlans *VLANSpec) {
 
+	// Make sure that the VLAN id is available
+	if _,ok := vlanIdsUsed[mod.VLAN]; ok {
+		return
+	}
+
 	// Add the alias if it does not already exist
 	if _,ok := vlans.Aliases[mod.Alias]; !ok {	
 			vlans.Aliases[mod.Alias] = mod.VLAN
+			vlanIdsUsed[mod.VLAN] = true
 		
 	}
 
@@ -321,17 +335,11 @@ func getNetworkMods(exp *Experiment) []*NetworkMod {
 func applyModification(mod *NetworkMod, topology *TopologySpec) error {
 
 	hostsMap := make(map[string]bool)
-	refNet := newIPv4Network(mod.Network)
-
-	if refNet == nil {
-		//logger.Printf("Invalid address %v",mod.Network)
-		return fmt.Errorf("Invalid address %v",mod.Network)
-	}
 
 	// Make sure that there are enough
 	// available addresses
 	if strings.ToLower(mod.Action) == "add" {
-		totalAddresses := refNet.getUsableHostCount()
+		totalAddresses := mod.ipv4Net.getUsableHostCount()
 		usedAddresses,err := getAddressesUsedCount(mod.Network,topology.Nodes)		
 
 		if err != nil {
@@ -347,7 +355,16 @@ func applyModification(mod *NetworkMod, topology *TopologySpec) error {
 
 		if hostCount > (totalAddresses - usedAddresses) {
 			//logger.Printf("Not enough addresses in %s",mod.Network)
-			return fmt.Errorf("Not enough addresses in %s",mod.Network)
+			return fmt.Errorf("%s can not accomodate %d hosts",mod.Network,hostCount)
+		}
+
+	} 
+
+	// Make sure that the ipv4 network is initialized
+	// when deleting a network
+	if mod.ipv4Net == nil {
+		if len(mod.Network) > 0 {
+			mod.ipv4Net = newIPv4Network(mod.Network)
 		}
 
 	}
@@ -379,14 +396,14 @@ func applyModification(mod *NetworkMod, topology *TopologySpec) error {
 					continue
 				}
 				
-				addInterface(node,mod,refNet)
+				addInterface(node,mod)
 
 			}
 			case "delete":{		
 				
 				// Skip delete actions when both an alias and subnet
 				// were not specified
-				if len(mod.Alias) == 0 && len(mod.Network) == 0{
+				if len(mod.Alias) == 0 && len(mod.Network) == 0 {
 					logger.Printf("A subnet and alias were not specified")
 					continue
 				}
@@ -409,15 +426,15 @@ func applyModification(mod *NetworkMod, topology *TopologySpec) error {
 	return nil
 }
 
-func addInterface(node *Node,mod *NetworkMod,ipv4 *ipV4Network) error {
+func addInterface(node *Node,mod *NetworkMod) error {
 
 	name := findAvailableName(mod.Prefix,node.Network.Interfaces)
-	mask := ipv4.cidr
+	mask := mod.ipv4Net.cidr
 
-	address := ipv4.getNextAddress(addressesUsed)
+	address := mod.ipv4Net.getNextAddress(addressesUsed)
 
 	if len(address) == 0 {		
-		return fmt.Errorf("unable to obtain an available IPv4 address in %s",ipv4.printShort())
+		return fmt.Errorf("unable to obtain an available IPv4 address in %s",mod.ipv4Net.printShort())
 	}
 
 	newInterface := Interface{
@@ -433,7 +450,7 @@ func addInterface(node *Node,mod *NetworkMod,ipv4 *ipV4Network) error {
 	// Add the interface to the array/slice of interfaces
 	node.Network.Interfaces = append(node.Network.Interfaces,newInterface)
 
-	decAddress := addressToBinary(address)
+	decAddress := addressToUint(address)
 	
 	// Add the address to the map of used addresses
 	addressesUsed[decAddress] = true
@@ -466,23 +483,18 @@ func interfaceMatch(node *Node,networkMod *NetworkMod) (bool,int) {
 			}
 		}
 
-		_,refNet,err := net.ParseCIDR(networkMod.Network)
-				
-		if err != nil {					
-			logger.Printf("Unable to parse network:%v",networkMod.Network)
-			continue
-		}		
-		
-		
-		
-		address := net.ParseIP(iface.Address)		
-
-		if address == nil {
-			logger.Printf("Unable to parse address:%v",iface.Address)
+		// Skip when no network has been specified
+		if networkMod.ipv4Net == nil {
 			continue
 		}
 
-		match := refNet.Contains(address)					
+		match,err := networkMod.ipv4Net.contains(iface.Address)
+		
+		// Skip over any parsing errors
+		if err != nil {
+			continue
+		}
+
 		if match {
 			return match,index
 		}
@@ -533,24 +545,5 @@ func getAddressesUsedCount(subnet string,nodes []*Node) (int,error) {
 
 }
 
-func isInSubnet(network string,address string) (bool,error) {
 
-	_,refNet,err := net.ParseCIDR(network)
-				
-	if err != nil {
-		return false,fmt.Errorf("Unable to parse network:%v",network)
-	}	
-
-	netAddress := net.ParseIP(address)		
-
-	if netAddress == nil {
-		return false,fmt.Errorf("Unable to parse address:%v",netAddress)
-		
-	}
-
-	return refNet.Contains(netAddress),nil
-			
-						
-
-}
 

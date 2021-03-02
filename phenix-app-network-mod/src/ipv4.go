@@ -1,25 +1,28 @@
 package main
 
 import (	
-	"fmt"	
-	"net"		
+	"fmt"			
 	"math"
 	"math/bits"
+	"net"
+	"regexp"
 	"strings"
 	"strconv"
+
 )
 
 const (
 	bitsPerByte int = 8
-	ipV4BitLength int = 32	
+	ipv4BitLength int = 32	
 )
 
 var (	
 	allOnes = uint32(math.Pow(2,32)-1)
+	ipv4Re = regexp.MustCompile(`(?:\d{1,3}[.]){3}\d{1,3}`)
 )
 
 
-type ipV4Network struct {
+type ipv4Network struct {
 	address uint32
 	cidr int
 	netmask uint32
@@ -29,7 +32,7 @@ type ipV4Network struct {
 }
 
 
-func newIPv4Network(address string) *ipV4Network {
+func newIPv4Network(address string) *ipv4Network {
 
 	addr,refNet,err := net.ParseCIDR(address)
 	
@@ -40,36 +43,42 @@ func newIPv4Network(address string) *ipV4Network {
 	
 	//fmt.Printf("Address:%v\n",addr)
 	cidr,_ := refNet.Mask.Size()
-	binAddress := addressToBinary(addr.String())
+	uintAddress := addressToUint(addr.String())
 	
-	return &ipV4Network{
-		address:binAddress,
+	return &ipv4Network{
+		address:uintAddress,
 		cidr:cidr,
 		netmask:maskFromCIDR(cidr),
-		network:network(cidr,binAddress),
-		broadcast:broadcast(cidr,binAddress),
-		lastAddressUsed:network(cidr,binAddress),
+		network:network(cidr,uintAddress),
+		broadcast:broadcast(cidr,uintAddress),
+		lastAddressUsed:network(cidr,uintAddress),
 	
 	}
 
 }
 
-func (this *ipV4Network) printRange() string {
+func (this *ipv4Network) printRange() string {
 	
-	return fmt.Sprintf("%s - %s",binaryToAddress(this.network),binaryToAddress(this.broadcast))	
+	return fmt.Sprintf("%s - %s",uintToAddress(this.network),uintToAddress(this.broadcast))	
 }
 
-func (this *ipV4Network) printShort() string {
+func (this *ipv4Network) printShort() string {
 
-	return fmt.Sprintf("%s/%d",binaryToAddress(this.address),this.cidr)
+	return fmt.Sprintf("%s/%d",uintToAddress(this.address),this.cidr)
 	
 }
 
-func (this *ipV4Network) wildCardMask() string {
-	return binaryToAddress(invertAddress(this.netmask))	
+func (this *ipv4Network) printLong() string {
+
+	return fmt.Sprintf("%s %s",uintToAddress(this.address),uintToAddress(this.netmask))
+	
 }
 
-func (this *ipV4Network) getNextAddress(addressesUsed map[uint32]bool) string {
+func (this *ipv4Network) wildCardMask() string {
+	return uintToAddress(invertAddress(this.netmask))	
+}
+
+func (this *ipv4Network) getNextAddress(addressesUsed map[uint32]bool) string {
 	
 
 	addressStart := this.lastAddressUsed
@@ -89,7 +98,7 @@ func (this *ipV4Network) getNextAddress(addressesUsed map[uint32]bool) string {
 		}
 
 		if _,ok := addressesUsed[addressStart]; !ok {			
-			return binaryToAddress(addressStart)
+			return uintToAddress(addressStart)
 		}
 		
 	}
@@ -97,11 +106,29 @@ func (this *ipV4Network) getNextAddress(addressesUsed map[uint32]bool) string {
 	return ""
 }
 
-func (this *ipV4Network) getUsableHostCount() int {
+func (this *ipv4Network) getUsableHostCount() int {
 	
 	// The usable addreses will exclude the network and
 	// broadcast addresses
 	return int((this.broadcast - this.network) - 1)
+
+
+}
+
+func (this *ipv4Network) contains(address string) (bool,error) {
+
+	// Check to make sure the address is a valid
+	// ipv4 address
+	if !ipv4Re.MatchString(address) {
+		return false,fmt.Errorf("Invalid address %v",address)
+	}
+
+	uintAddress := addressToUint(address)
+	
+	// The address is contained if the address is between the
+	// network and broadcast addresses or equal to the network or
+	// broadcast address
+	return this.network <= uintAddress && uintAddress <= this.broadcast,nil
 
 
 }
@@ -119,7 +146,7 @@ func network(cidr int, address uint32) uint32 {
 
 func maskFromCIDR(cidr int) uint32 {
 
-	return allOnes << (ipV4BitLength - cidr)	
+	return allOnes << (ipv4BitLength - cidr)	
 }
 
 func cidrFromMask(netmask uint32) int {
@@ -127,32 +154,32 @@ func cidrFromMask(netmask uint32) int {
 	return bits.OnesCount32(netmask)	
 }
 
-func addressToBinary(address string) uint32 {
+func addressToUint(address string) uint32 {
 
-	var binAddress []uint32
+	var uintAddress []uint32
 		
 	octets := strings.Split(address,".")
 	
 	for i:=0; i<len(octets);i++ {
 	
 		intOctet,_ := strconv.Atoi(octets[i])
-		binOctet := uint32(intOctet) << (ipV4BitLength - ((i+1)*bitsPerByte))
-		binAddress = append(binAddress,binOctet)
+		uintOctet := uint32(intOctet) << (ipv4BitLength - ((i+1)*bitsPerByte))
+		uintAddress = append(uintAddress,uintOctet)
 	}
 	
-	return binAddress[0] | binAddress[1] | binAddress[2] | binAddress[3]
+	return uintAddress[0] | uintAddress[1] | uintAddress[2] | uintAddress[3]
 }
 
-func binaryToAddress (binaryAddress uint32) string {
+func uintToAddress (uintAddress uint32) string {
 
 	var output []string
 	
 		
 	for i:=0; i<4; i++ {
 	
-		shiftCount := (ipV4BitLength - ((i+1)*bitsPerByte))
+		shiftCount := (ipv4BitLength - ((i+1)*bitsPerByte))
 		bitMask := uint32(255 << shiftCount)
-		decByte := (binaryAddress & bitMask) >> shiftCount
+		decByte := (uintAddress & bitMask) >> shiftCount
 		output = append(output,fmt.Sprintf("%d",decByte))
 	
 	}
