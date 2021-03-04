@@ -1,0 +1,44 @@
+apiVersion: phenix.sandia.gov/v1
+kind: Scenario
+metadata:
+  name: network_mod_mixed
+  annotations:
+    topology: inf_topo_no_mgnt
+spec:
+  apps:
+    experiment:        
+    - name: network-mod
+      metadata:
+        modifications:
+          - action: add   
+            network: 172.168.1.0/24
+            vlan: 30
+            alias: mgntB 
+            hosts:  
+          - action: add   
+            network: 192.168.1.0/24
+            vlan: 45
+            alias: mgntC 
+            hosts: 
+          - action: delete 
+            alias: int_a 
+            hosts: 
+    host:
+#    - name: protonuke
+#      hosts:
+#      - hostname: turbine-01 # hostname of topology node to apply it to
+#        metadata:
+#          # protonuke app metadata for this topology node
+#          args: -logfile /var/log/protonuke.log -level debug -http -https -smtp -ssh 192.168.100.100
+#    - name: wireguard
+#      hosts:
+#      - hostname: turbine-01
+#        metadata:
+#          # wireguard app metadata for this topology node
+#          infrastructure:
+#            private_key: GLlxWJom8cQViGHojqOUShWIZG7IsSX8
+#            address: 10.255.255.1/24
+#            listen_port: 51820
+#          peers:
+#            public_key: +joyya2F9g72qbKBtPDn00mIevG1j1OqeN76ylFLsiE=
+#            allowed_ips: 10.255.255.10/32
