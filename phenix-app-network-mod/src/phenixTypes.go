@@ -1,21 +1,20 @@
 package main
 
 type Experiment struct {
-	Metadata ConfigMetadata    		 `json:"metadata" yaml:"metadata"` // experiment configuration metadata
-	Spec     ExperimentSpec   		 `json:"spec" yaml:"spec"`         // reference to latest versioned experiment spec
-	Status   ExperimentStatus 		 `json:"status" yaml:"status"`     // reference to latest versioned experiment status
+	Metadata ConfigMetadata   `json:"metadata" yaml:"metadata"` // experiment configuration metadata
+	Spec     ExperimentSpec   `json:"spec" yaml:"spec"`         // reference to latest versioned experiment spec
+	Status   ExperimentStatus `json:"status" yaml:"status"`     // reference to latest versioned experiment status
 }
 
 type ExperimentSpec struct {
-	ExperimentName 	string            `json:"experimentName" yaml:"experimentName" structs:"experimentName" mapstructure:"experimentName"`
-	BaseDir        	string            `json:"baseDir" yaml:"baseDir" structs:"baseDir" mapstructure:"baseDir"`
-	Topology      	*TopologySpec     `json:"topology" yaml:"topology" structs:"topology" mapstructure:"topology"`
-	Scenario      	*ScenarioSpec     `json:"scenario" yaml:"scenario" structs:"scenario" mapstructure:"scenario"`
-	VLANs          	*VLANSpec         `json:"vlans" yaml:"vlans" structs:"vlans" mapstructure:"vlans"`
-	Schedules      	map[string]string `json:"schedules" yaml:"schedules" structs:"schedules" mapstructure:"schedules"`
-	RunLocal       	bool              `json:"runLocal" yaml:"runLocal" structs:"runLocal" mapstructure:"runLocal"`
+	ExperimentName string            `json:"experimentName" yaml:"experimentName" structs:"experimentName" mapstructure:"experimentName"`
+	BaseDir        string            `json:"baseDir" yaml:"baseDir" structs:"baseDir" mapstructure:"baseDir"`
+	Topology       *TopologySpec     `json:"topology" yaml:"topology" structs:"topology" mapstructure:"topology"`
+	Scenario       *ScenarioSpec     `json:"scenario" yaml:"scenario" structs:"scenario" mapstructure:"scenario"`
+	VLANs          *VLANSpec         `json:"vlans" yaml:"vlans" structs:"vlans" mapstructure:"vlans"`
+	Schedules      map[string]string `json:"schedules" yaml:"schedules" structs:"schedules" mapstructure:"schedules"`
+	RunLocal       bool              `json:"runLocal" yaml:"runLocal" structs:"runLocal" mapstructure:"runLocal"`
 }
-
 
 type ExperimentStatus struct {
 	StartTime string                 `json:"startTime" yaml:"startTime" structs:"startTime" mapstructure:"startTime"`
@@ -50,7 +49,6 @@ type ConfigMetadata struct {
 	Annotations Annotations `json:"annotations,omitempty" yaml:"annotations,omitempty"`
 }
 
-
 type ScenarioSpec struct {
 	Apps []ScenarioApp `json:"apps" yaml:"apps" structs:"apps" mapstructure:"apps"`
 }
@@ -58,7 +56,7 @@ type ScenarioSpec struct {
 type ScenarioApp struct {
 	Name     string                 `json:"name" yaml:"name" structs:"name" mapstructure:"name"`
 	AssetDir string                 `json:"assetDir" yaml:"assetDir" structs:"assetDir" mapstructure:"assetDir"`
-	Metadata map[string]interface{}	`json:"metadata" yaml:"metadata" structs:"metadata" mapstructure:"metadata"`
+	Metadata map[string]interface{} `json:"metadata" yaml:"metadata" structs:"metadata" mapstructure:"metadata"`
 	Hosts    []ScenarioAppHost      `json:"hosts" yaml:"hosts" structs:"hosts" mapstructure:"hosts"`
 }
 
@@ -77,12 +75,12 @@ type TopologySpec struct {
 }
 
 type Node struct {
-	Labels    	map[string]string `json:"labels" yaml:"labels" structs:"labels" mapstructure:"labels"`
-	Type      	string            `json:"type" yaml:"type" structs:"type" mapstructure:"type"`
-	General   	*General          `json:"general" yaml:"general" structs:"general" mapstructure:"general"`
-	Hardware   	*Hardware         `json:"hardware" yaml:"hardware" structs:"hardware" mapstructure:"hardware"`
-	Network    	*Network          `json:"network" yaml:"network" structs:"network" mapstructure:"network"`
-	Injections 	[]*Injection      `json:"injections" yaml:"injections" structs:"injections" mapstructure:"injections"`
+	Labels     map[string]string `json:"labels" yaml:"labels" structs:"labels" mapstructure:"labels"`
+	Type       string            `json:"type" yaml:"type" structs:"type" mapstructure:"type"`
+	General    *General          `json:"general" yaml:"general" structs:"general" mapstructure:"general"`
+	Hardware   *Hardware         `json:"hardware" yaml:"hardware" structs:"hardware" mapstructure:"hardware"`
+	Network    *Network          `json:"network" yaml:"network" structs:"network" mapstructure:"network"`
+	Injections []*Injection      `json:"injections" yaml:"injections" structs:"injections" mapstructure:"injections"`
 }
 
 type General struct {
@@ -184,5 +182,3 @@ type AddrPort struct {
 	Address string `json:"address" yaml:"address" structs:"address" mapstructure:"address"`
 	Port    int    `json:"port" yaml:"port" structs:"port" mapstructure:"port"`
 }
-
-

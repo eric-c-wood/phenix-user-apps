@@ -3,39 +3,39 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"	
-	"os"		
-	"strings"
-	"strconv"
-	"net"
-	"log"
-	"regexp"
 	"github.com/mitchellh/mapstructure"
+	"io/ioutil"
+	"log"
+	"net"
+	"os"
+	"regexp"
+	"strconv"
+	"strings"
 )
 
 var (
-	vlansUsed 	   map[string]bool	
-	vlanIdsUsed	   map[int]bool
-	addressesUsed  map[uint32]bool
-	ifaceRe = regexp.MustCompile(`(?i)([a-z]+)(\d+)`)	
+	vlansUsed     map[string]bool
+	vlanIdsUsed   map[int]bool
+	addressesUsed map[uint32]bool
+	ifaceRe       = regexp.MustCompile(`(?i)([a-z]+)(\d+)`)
 )
 
 type NetworkMod struct {
-	Action  	string  `json:"action" mapstructure:"action"`
-	Network 	string  `json:"network" mapstructure:"network"`
-	VLAN		int 	`json:"vlan" mapstructure:"vlan"`
-	Alias		string 	`json:"alias" mapstructure:"alias"`
-	Prefix      string  `json:"prefix" mapstructure:"prefix"`
-	Type		string	`json:"type" mapstructure:"type"`
-	Gateway		string	`json:"gateway" mapstructure:"gateway"`
-	Hosts  	   []string `json:"hosts" mapstructure:"hosts"`
+	Action  string   `json:"action" mapstructure:"action"`
+	Network string   `json:"network" mapstructure:"network"`
+	VLAN    int      `json:"vlan" mapstructure:"vlan"`
+	Alias   string   `json:"alias" mapstructure:"alias"`
+	Prefix  string   `json:"prefix" mapstructure:"prefix"`
+	Type    string   `json:"type" mapstructure:"type"`
+	Gateway string   `json:"gateway" mapstructure:"gateway"`
+	Hosts   []string `json:"hosts" mapstructure:"hosts"`
 
 	// Internal use to test for address containment
-	ipv4Net    *ipv4Network
+	ipv4Net *ipv4Network
 }
 
 type NetworkMods struct {
-	Mods  []*NetworkMod  `json:"modifications" mapstructure:"modifications"`
+	Mods []*NetworkMod `json:"modifications" mapstructure:"modifications"`
 }
 
 var logger *log.Logger
@@ -57,7 +57,6 @@ func main() {
 
 	logger = log.New(out, " network-mod ", log.Ldate|log.Ltime|log.Lmsgprefix)
 
-
 	if len(os.Args) != 2 {
 		logger.Fatal("incorrect amount of args provided")
 	}
@@ -68,7 +67,6 @@ func main() {
 	}
 
 	stage := os.Args[1]
-	
 
 	if stage != "configure" {
 		fmt.Print(string(body))
@@ -77,7 +75,7 @@ func main() {
 
 	var exp Experiment
 
-	err = json.Unmarshal(body,&exp)
+	err = json.Unmarshal(body, &exp)
 	if err != nil {
 		logger.Fatalf("decoding experiment: %v", err)
 	}
@@ -86,7 +84,7 @@ func main() {
 	case "configure":
 		if err := configure(&exp); err != nil {
 			logger.Fatalf("failed to execute configure stage: %v", err)
-		}	
+		}
 	}
 
 	body, err = json.Marshal(exp)
@@ -98,7 +96,7 @@ func main() {
 	fmt.Print(string(body))
 }
 
-func configure(exp *Experiment) error {	
+func configure(exp *Experiment) error {
 
 	// Get any network modifications that are defined
 	networkModifications := getNetworkMods(exp)
@@ -113,30 +111,29 @@ func configure(exp *Experiment) error {
 	initUsedTables(exp.Spec.Topology)
 
 	// Apply the modifications one at a time
-	for _,mod := range networkModifications {
+	for _, mod := range networkModifications {
 
 		// Add any defaults
 		addDefaults(mod)
 
 		// Add any defined VLAN aliases
 		if mod.VLAN != 0 {
-			addVLANAlias(mod,exp.Spec.VLANs)
+			addVLANAlias(mod, exp.Spec.VLANs)
 		}
 
 		// Make sure the gateway is in the same subnet
 		if len(mod.Gateway) > 0 && mod.ipv4Net != nil {
-			if check,err := mod.ipv4Net.contains(mod.Gateway); !check {
+			if check, err := mod.ipv4Net.containsAddress(mod.Gateway); !check {
 				if err != nil {
 					return err
 				}
-				return fmt.Errorf("%s is not in %s",mod.Gateway,mod.Network)
-				
+				return fmt.Errorf("%s is not in %s", mod.Gateway, mod.Network)
+
 			}
 
 		}
 
-
-		if err := applyModification(mod,exp.Spec.Topology) ; err != nil {
+		if err := applyModification(mod, exp.Spec.Topology); err != nil {
 			return err
 		}
 	}
@@ -151,17 +148,25 @@ func initUsedTables(topology *TopologySpec) {
 	addressesUsed = make(map[uint32]bool)
 	vlanIdsUsed = make(map[int]bool)
 
-	for _,node := range nodes {
+	for _, node := range nodes {
 
-		for _,iface := range node.Network.Interfaces {			
-			if _,ok := vlansUsed[iface.VLAN]; !ok {
+		for _, iface := range node.Network.Interfaces {
+			if _, ok := vlansUsed[iface.VLAN]; !ok {
 				vlansUsed[iface.VLAN] = true
 			}
 
-			decAddress := addressToUint(iface.Address)
+			uintAddress, err := addressToUint(iface.Address)
 
-			if _,ok := addressesUsed[decAddress]; !ok {
-				addressesUsed[decAddress] = true
+			// Skip over invalid addresses
+			// TODO: should this process quit when an invalid
+			// address is received
+			if err != nil {
+				logger.Printf("Invalid address %v", uintAddress)
+				continue
+			}
+
+			if _, ok := addressesUsed[uintAddress]; !ok {
+				addressesUsed[uintAddress] = true
 			}
 		}
 	}
@@ -200,34 +205,33 @@ func addDefaults(mod *NetworkMod) {
 		mod.Type = "ethernet"
 	}
 
-
 }
 
-func addVLANAlias(mod *NetworkMod,vlans *VLANSpec) {
+func addVLANAlias(mod *NetworkMod, vlans *VLANSpec) {
 
 	// Make sure that the VLAN id is available
-	if _,ok := vlanIdsUsed[mod.VLAN]; ok {
+	if _, ok := vlanIdsUsed[mod.VLAN]; ok {
 		return
 	}
 
 	// Add the alias if it does not already exist
-	if _,ok := vlans.Aliases[mod.Alias]; !ok {	
-			vlans.Aliases[mod.Alias] = mod.VLAN
-			vlanIdsUsed[mod.VLAN] = true
-		
+	if _, ok := vlans.Aliases[mod.Alias]; !ok {
+		vlans.Aliases[mod.Alias] = mod.VLAN
+		vlanIdsUsed[mod.VLAN] = true
+
 	}
 
 }
 
 func findAvailableAlias() string {
 
-	aliasPrefix := "network"	
+	aliasPrefix := "network"
 	counter := 1
 
-	// Loop until a suitable alias is 
+	// Loop until a suitable alias is
 	// found
 	for {
-		testAlias := fmt.Sprintf("%s%d",aliasPrefix,counter)
+		testAlias := fmt.Sprintf("%s%d", aliasPrefix, counter)
 
 		// Limit the infinite loop to 10000
 		// iterations
@@ -236,7 +240,7 @@ func findAvailableAlias() string {
 		}
 
 		// Alias already exists, try the next name
-		if _,ok := vlansUsed[testAlias]; ok {
+		if _, ok := vlansUsed[testAlias]; ok {
 			counter += 1
 			continue
 		}
@@ -254,29 +258,25 @@ func findAvailableName(prefix string, ifaces []Interface) string {
 	lastIndex := 0
 	var prefixesFound []string
 
-
-	for _,iface := range ifaces {
-		if _,ok := ifaceMap[iface.Name]; !ok {
+	for _, iface := range ifaces {
+		if _, ok := ifaceMap[iface.Name]; !ok {
 			ifaceMap[iface.Name] = true
 
 			// Try to extract the index and prefix
-			matches := ifaceRe.FindAllStringSubmatch(iface.Name,-1)
+			matches := ifaceRe.FindAllStringSubmatch(iface.Name, -1)
 
 			if len(matches[0]) == 3 {
-				tmp,_ := strconv.Atoi(matches[0][2])
+				tmp, _ := strconv.Atoi(matches[0][2])
 
-				prefixesFound = append(prefixesFound,matches[0][1])
-				
+				prefixesFound = append(prefixesFound, matches[0][1])
 
 				if tmp > lastIndex {
 					lastIndex = tmp
-				}			
-
+				}
 
 			}
 		}
 	}
-
 
 	counter := lastIndex
 
@@ -297,14 +297,14 @@ func findAvailableName(prefix string, ifaces []Interface) string {
 			return ""
 		}
 
-		testName := fmt.Sprintf("%s%d",prefix,counter)
-		if _,ok := ifaceMap[testName]; ok {
+		testName := fmt.Sprintf("%s%d", prefix, counter)
+		if _, ok := ifaceMap[testName]; ok {
 			counter += 1
 			continue
 		}
 
 		return testName
-		
+
 	}
 
 	return ""
@@ -313,18 +313,18 @@ func findAvailableName(prefix string, ifaces []Interface) string {
 func getNetworkMods(exp *Experiment) []*NetworkMod {
 
 	var modifications NetworkMods
-	
+
 	// Check for any network modifications defined
-	for _,app := range exp.Spec.Scenario.Apps {
-		
+	for _, app := range exp.Spec.Scenario.Apps {
+
 		if app.Name != "network-mod" {
 			continue
 		}
 
-		if err := mapstructure.Decode(app.Metadata,&modifications); err != nil {
-			logger.Printf("mapsructure can't decode %v",app.Metadata)
+		if err := mapstructure.Decode(app.Metadata, &modifications); err != nil {
+			logger.Printf("mapsructure can't decode %v", app.Metadata)
 		}
-		
+
 		break
 	}
 
@@ -340,7 +340,7 @@ func applyModification(mod *NetworkMod, topology *TopologySpec) error {
 	// available addresses
 	if strings.ToLower(mod.Action) == "add" {
 		totalAddresses := mod.ipv4Net.getUsableHostCount()
-		usedAddresses,err := getAddressesUsedCount(mod.Network,topology.Nodes)		
+		usedAddresses, err := getAddressesUsedCount(mod.Network, topology.Nodes)
 
 		if err != nil {
 			return err
@@ -355,10 +355,10 @@ func applyModification(mod *NetworkMod, topology *TopologySpec) error {
 
 		if hostCount > (totalAddresses - usedAddresses) {
 			//logger.Printf("Not enough addresses in %s",mod.Network)
-			return fmt.Errorf("%s can not accomodate %d hosts",mod.Network,hostCount)
+			return fmt.Errorf("%s can not accomodate %d hosts", mod.Network, hostCount)
 		}
 
-	} 
+	}
 
 	// Make sure that the ipv4 network is initialized
 	// when deleting a network
@@ -371,53 +371,54 @@ func applyModification(mod *NetworkMod, topology *TopologySpec) error {
 
 	// Put the hosts in a hash table for
 	// easy lookup
-	for _,host := range mod.Hosts {
-		if _,ok := hostsMap[host]; !ok{
-			hostsMap[host]=true
+	for _, host := range mod.Hosts {
+		if _, ok := hostsMap[host]; !ok {
+			hostsMap[host] = true
 		}
 	}
 
 	nodes := topology.Nodes
 
-	for _,node := range nodes {
-		// Skip hosts that are not the target 
+	for _, node := range nodes {
+		// Skip hosts that are not the target
 		// of the modification
 		if len(mod.Hosts) > 0 {
-			if _,ok := hostsMap[node.General.Hostname]; !ok {
+			if _, ok := hostsMap[node.General.Hostname]; !ok {
 				continue
 			}
 		}
 
 		switch strings.ToLower(mod.Action) {
-			case "add": {
+		case "add":
+			{
 				// Do not add the network/alias if
 				// it already exists
-				if exists,_ := interfaceMatch(node,mod); exists {
+				if exists, _ := interfaceMatch(node, mod); exists {
 					continue
 				}
-				
-				addInterface(node,mod)
+
+				addInterface(node, mod)
 
 			}
-			case "delete":{		
-				
+		case "delete":
+			{
+
 				// Skip delete actions when both an alias and subnet
 				// were not specified
 				if len(mod.Alias) == 0 && len(mod.Network) == 0 {
 					logger.Printf("A subnet and alias were not specified")
 					continue
 				}
-				
 
 				// Do not attempt to remove a network/alias
 				// if it does not already exist
-				exists,index := interfaceMatch(node,mod)
+				exists, index := interfaceMatch(node, mod)
 				if !exists {
-					logger.Printf("%s does not exist on %s",mod.Network,node.General.Hostname)
+					logger.Printf("%s does not exist on %s", mod.Network, node.General.Hostname)
 					continue
 				}
 
-				node.Network.Interfaces = removeInterface(node.Network.Interfaces,index)
+				node.Network.Interfaces = removeInterface(node.Network.Interfaces, index)
 
 			}
 		}
@@ -426,60 +427,63 @@ func applyModification(mod *NetworkMod, topology *TopologySpec) error {
 	return nil
 }
 
-func addInterface(node *Node,mod *NetworkMod) error {
+func addInterface(node *Node, mod *NetworkMod) error {
 
-	name := findAvailableName(mod.Prefix,node.Network.Interfaces)
+	name := findAvailableName(mod.Prefix, node.Network.Interfaces)
 	mask := mod.ipv4Net.cidr
 
 	address := mod.ipv4Net.getNextAddress(addressesUsed)
 
-	if len(address) == 0 {		
-		return fmt.Errorf("unable to obtain an available IPv4 address in %s",mod.ipv4Net.printShort())
+	if len(address) == 0 {
+		return fmt.Errorf("unable to obtain an available IPv4 address in %s", mod.ipv4Net.printShort())
 	}
 
 	newInterface := Interface{
-		Name:name,
-		VLAN:mod.Alias,
-		Address:address,
-		Mask:mask,		
-		Gateway:mod.Gateway,
-		Proto:"static",
-		Type:mod.Type,
+		Name:    name,
+		VLAN:    mod.Alias,
+		Address: address,
+		Mask:    mask,
+		Gateway: mod.Gateway,
+		Proto:   "static",
+		Type:    mod.Type,
 	}
 
 	// Add the interface to the array/slice of interfaces
-	node.Network.Interfaces = append(node.Network.Interfaces,newInterface)
+	node.Network.Interfaces = append(node.Network.Interfaces, newInterface)
 
-	decAddress := addressToUint(address)
-	
+	uintAddress, err := addressToUint(address)
+
+	if err != nil {
+		return err
+	}
+
 	// Add the address to the map of used addresses
-	addressesUsed[decAddress] = true
+	addressesUsed[uintAddress] = true
 
 	return nil
 
 }
 
-func removeInterface(ifaces []Interface,index int) []Interface {
+func removeInterface(ifaces []Interface, index int) []Interface {
 
 	if len(ifaces) == 0 {
 		return ifaces
-	}	
+	}
 
 	// TODO if there is only one interface remaining, should
 	// we allow the last interface to be removed?
 
-	return append(ifaces[:index],ifaces[index+1:]...)
+	return append(ifaces[:index], ifaces[index+1:]...)
 }
 
-func interfaceMatch(node *Node,networkMod *NetworkMod) (bool,int) {
-	
+func interfaceMatch(node *Node, networkMod *NetworkMod) (bool, int) {
 
 	for index, iface := range node.Network.Interfaces {
 
 		// First check the vlan alias
 		if len(networkMod.Alias) > 0 {
 			if iface.VLAN == networkMod.Alias {
-				return true,index
+				return true, index
 			}
 		}
 
@@ -488,62 +492,57 @@ func interfaceMatch(node *Node,networkMod *NetworkMod) (bool,int) {
 			continue
 		}
 
-		match,err := networkMod.ipv4Net.contains(iface.Address)
-		
+		match, err := networkMod.ipv4Net.containsAddress(iface.Address)
+
 		// Skip over any parsing errors
 		if err != nil {
 			continue
 		}
 
 		if match {
-			return match,index
+			return match, index
 		}
-		
+
 	}
 
-	return false,-1
+	return false, -1
 }
 
-func getAddressesUsedCount(subnet string,nodes []*Node) (int,error) {
+func getAddressesUsedCount(subnet string, nodes []*Node) (int, error) {
 
-	_,refNet,err := net.ParseCIDR(subnet)
-				
+	_, refNet, err := net.ParseCIDR(subnet)
+
 	if err != nil {
-		return -1,fmt.Errorf("Unable to parse network:%v",subnet)
-	}	
+		return -1, fmt.Errorf("Unable to parse network:%v", subnet)
+	}
 
 	used := make(map[string]bool)
 
-	for _,node := range nodes {
-		for _,iface := range node.Network.Interfaces {
+	for _, node := range nodes {
+		for _, iface := range node.Network.Interfaces {
 
-			address := net.ParseIP(iface.Address)		
+			address := net.ParseIP(iface.Address)
 
 			if address == nil {
-				logger.Printf("Unable to parse address:%v",iface.Address)
+				logger.Printf("Unable to parse address:%v", iface.Address)
 				continue
 			}
 
-			match := refNet.Contains(address)	
-			
+			match := refNet.Contains(address)
+
 			// Only looking for addresses contained in the
 			// specified subnet
 			if !match {
 				continue
 			}
-			
 
-			if _,ok := used[iface.Address]; !ok {
+			if _, ok := used[iface.Address]; !ok {
 				used[iface.Address] = true
 			}
 
 		}
 	}
 
-	return len(used),nil
-
+	return len(used), nil
 
 }
-
-
-
