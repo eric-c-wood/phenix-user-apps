@@ -6,12 +6,12 @@ The `archive-experiment` creates and/or restores one or more user defined archiv
 
 An archive is defined by specifying the following five fields under the `archives` list:    
 
-**name**: The archive name will have either a `tar.gz` or a `zip` extension appended based on the archive type specified for `type`.  The archive name can also consist of two place holder variables namely `<experiment_name>` and `<timestamp>`.  The `<experiment_name>` placeholder will receive the name of the experiment and the `<timestamp>` placeholder will receive a timestamp in the format `YYYY-MM-DD_HHMM`.  For example if a user specified the name `<experiment_name>_test_<timestamp>` and the name of the experiment was `archive` and the current date and time was `2021-03-10 16:10`, then the name of the archive would be `archive_test_2021-03-10_1610`.  The default value is `<experiment_name>_<timestamp>` is no value is specified.  
+**name**: The archive name will have either a `tar.gz` or a `zip` extension appended based on the archive type specified for `type`.  The archive name can also consist of two place holder variables namely `<experiment_name>` and `<timestamp>`.  The `<experiment_name>` placeholder will receive the name of the experiment and the `<timestamp>` placeholder will receive a timestamp in the format `YYYY-MM-DD_HHMM`.  For example if a user specified the name `<experiment_name>_test_<timestamp>` and the name of the experiment was `archive` and the current date and time was `2021-03-10 16:10`, then the name of the archive would be `archive_test_2021-03-10_1610`.  The default value is `<experiment_name>_<timestamp>` when no value is specified.  
 **directory**: Directory is the path to the parent directory that should be scanned to collect files to archive.  The name `experiemnt_directory` can be used to refer to the directory where experiemnt files are usually placed. `(e.g. /phenix/images/{experiment name}/files)`  
 **filters**: Filters are a list of regular expressions so that only files matching the regular expressions will be included in the archive.  This field is optional.  If no filters are specified, then all files found in the specified `directory` will be included in the archive.  
 **cleanup**: `[true,false]` Cleanup specifies whether the files collected in the archive should be removed after successfully placed in an archive.  A value of `true` will remove the files from the `directory` specified.  The default value is `false`.  
 **type**: [targz,zip]  Type describes the algorithms used to construct the archive.  If type is `targz`, then the archive will be a `tar` using `gzip` compression.  If `zip` is specified, then the archive will be a zip archive.  The default value is `zip`.  
-**output**: Output describes the directory where the archive should be written to.  The default value is `/phenix/Archives` is no output directory is specified.  The placeholder variables `<experiment_name>` and `<timestamp>` can also be used as part of the output directory name.  If the output directory does not exist, it will be created.  
+**output**: Output describes the directory where the archive should be written to.  The default value is `/phenix/Archives` when no output directory is specified.  The placeholder variables `<experiment_name>` and `<timestamp>` can also be used as part of the output directory name.  If the output directory does not exist, it will be created.  
 
 Below are several examples of creating an archive.  
 
@@ -36,9 +36,6 @@ spec:
 ```
 
 ### Archive with placeholder variables
-
-The network can be added to all VMs by 
-not specifying any VMs/hosts
 
 ```
 apiVersion: phenix.sandia.gov/v1
@@ -127,7 +124,7 @@ spec:
 
 ### Restore an archive
 
-Restoration of an archive consists of creating an experiement using a saved experiment configuration file.  The restored experiment will have the name `<experiment_name>_<saved_date_time>`.  If the `<saved_date_time>` can not be extracted from the archive name, then the original experiment name will be used.  If the original experiment name already exists in the experiment data store, then the experiment will not be restored.  Perhaps, in the future, an option to delete an existing experiment will be added to the restoration specification.  As mentioned, the restoration option does not fit well with the current phenix experiment lifecycle.  Consequently, the restoration feature of this app will most likely be moved to a standalone executable.  
+Restoration of an archive consists of creating an experiement using a saved experiment configuration file and restoring any user defined files.  The restored experiment will have the name `<experiment_name>_<saved_date_time>`.  If the `<saved_date_time>` can not be extracted from the archive name, then the original experiment name will be used.  If the original experiment name already exists in the experiment data store, then the experiment will not be restored.  Perhaps, in the future, an option to delete an existing experiment will be added to the restoration specification.  As mentioned, the restoration option does not fit well with the current phenix experiment lifecycle.  Consequently, the restoration feature of this app will most likely be moved to a standalone executable.  
 
 An archive can be restored by specifying the following three fields under the `retrievals` list:  
 
