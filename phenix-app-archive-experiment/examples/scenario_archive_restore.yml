@@ -1,0 +1,18 @@
+apiVersion: phenix.sandia.gov/v1
+kind: Scenario
+metadata:
+  name: archive_restore_test
+  annotations:
+    topology: inf_topo_no_mgnt
+spec:
+  apps:
+    experiment:        
+    - name: archive-experiment
+      metadata:
+        retrievals:
+          - name: /phenix/Archives/archive_filters_test_2021-03-10_1510/archive_filters_test_2021-03-10_1510.tar.gz
+            directory: 
+            filters:  
+          
+    host:
+

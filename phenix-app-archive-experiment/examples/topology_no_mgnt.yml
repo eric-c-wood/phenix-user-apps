@@ -1,0 +1,142 @@
+apiVersion: phenix.sandia.gov/v1
+kind: Topology
+metadata:
+  name: inf_topo_no_mgnt
+spec:
+  nodes:
+  - type: VirtualMachine
+    general:
+      hostname: site_A_server
+      snapshot: true
+    hardware:
+      os_type: linux
+      drives:
+      - image: /phenix/images/miniccc.qcow2
+        inject_partition: 2.
+    network:
+      interfaces:
+      - name: eth0
+        vlan: int_a
+        address: 192.168.1.2
+        mask: 24.
+        gateway: 192.168.1.1
+        proto: static
+        type: ethernet
+  - type: VirtualMachine
+    general:
+      hostname: site_B_workstation
+      snapshot: true
+    hardware:
+      os_type: linux
+      drives:
+      - image: /phenix/images/miniccc.qcow2
+        inject_partition: 2. 
+    network:
+      interfaces:
+      - name: eth0
+        vlan: int_b
+        address: 192.168.2.2
+        mask: 24.
+        gateway: 192.168.2.1
+        proto: static
+        type: ethernet      
+  - type: Router
+    labels:
+      ntp-server: "true"
+    general:
+      hostname: site_A_router
+      snapshot: true
+    hardware:
+      os_type: linux
+      drives:
+      - image: /phenix/images/vyatta.qcow2
+    network:
+      interfaces:     
+      - name: eth2
+        vlan: bb_2 
+        address: 10.0.0.1
+        mask: 24.
+        proto: ospf
+        type: ethernet
+      - name: eth3
+        vlan: int_a
+        address: 192.168.1.1
+        mask: 24.
+        proto: static
+        type: ethernet
+      ospf:
+        router_id: 10.0.0.1
+        dead_interval: 60
+        hello_interval: 10
+        retransmission_interval: 5
+        areas:
+        - area_id: 0.
+          area_networks:
+          - network: 10.0.0.0/24
+  - type: Router
+    labels:
+      ntp-server: "true"
+    general:
+      hostname: site_B_router
+      snapshot: true
+    hardware:
+      os_type: linux
+      drives:
+      - image: /phenix/images/vyatta.qcow2
+    network:
+      interfaces:      
+      - name: eth2
+        vlan: bb_1
+        address: 10.0.1.1
+        mask: 24.
+        proto: ospf 
+        type: ethernet
+      - name: eth3
+        vlan: int_b
+        address: 192.168.2.1
+        mask: 24.
+        proto: static
+        type: ethernet
+      ospf:
+        router_id: 10.0.1.0
+        dead_interval: 60
+        hello_interval: 10
+        retransmission_interval: 5
+        areas:
+        - area_id: 0.
+          area_networks:
+          - network: 10.0.1.0/24 
+  - type: Router
+    labels:
+      ntp-server: "true"
+    general:
+      hostname: internet_router
+      snapshot: true
+    hardware:
+      os_type: linux
+      drives:
+      - image: /phenix/images/vyatta.qcow2
+    network:
+      interfaces:      
+      - name: eth2
+        vlan: bb_1
+        address: 10.0.1.254
+        mask: 24.
+        proto: ospf
+        type: ethernet
+      - name: eth3
+        vlan: bb_2
+        address: 10.0.0.254
+        mask: 24.
+        proto: ospf 
+        type: ethernet
+      ospf:
+        router_id: 10.0.0.254 
+        dead_interval: 60
+        hello_interval: 10
+        retransmission_interval: 5
+        areas:
+        - area_id: 0.
+          area_networks:
+          - network: 10.0.1.0/24
+          - network: 10.0.0.0/24

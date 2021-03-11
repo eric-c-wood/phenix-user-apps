@@ -1,0 +1,29 @@
+apiVersion: phenix.sandia.gov/v1
+kind: Scenario
+metadata:
+  name: archive_multiple_test
+  annotations:
+    topology: inf_topo_no_mgnt
+spec:
+  apps:
+    experiment:        
+    - name: archive-experiment
+      metadata:
+        archives:
+          - name: <experiment_name>_test_<timestamp>
+            directory: experiment_directory
+            filters: 
+              - pcap
+            cleanup: true
+            type: zip
+            output: /phenix/Archives/experiment_files_<timestamp>            
+          - name: data_<timestamp>
+            directory: /phenix/data
+            filters: 
+              - cfg
+            cleanup: true
+            type: targz
+            output: 
+          
+    host:
+

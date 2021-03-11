@@ -1,0 +1,21 @@
+apiVersion: phenix.sandia.gov/v1
+kind: Scenario
+metadata:
+  name: archive_variable_test
+  annotations:
+    topology: inf_topo_no_mgnt
+spec:
+  apps:
+    experiment:        
+    - name: archive-experiment
+      metadata:
+        archives:
+          - name: <experiment_name>_test_<timestamp>
+            directory: experiment_directory
+            filters:
+            cleanup:
+            type:
+            output:
+          
+    host:
+
