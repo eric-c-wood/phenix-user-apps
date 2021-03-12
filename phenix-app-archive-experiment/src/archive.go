@@ -1,15 +1,15 @@
 package main
 
 import (
-	"fmt"
-	"io"
-	"os"
-	"regexp"
-	"strings"
 	"archive/tar"
 	"archive/zip"
 	"compress/gzip"
+	"fmt"
+	"io"
+	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 )
 
 type fileList struct {

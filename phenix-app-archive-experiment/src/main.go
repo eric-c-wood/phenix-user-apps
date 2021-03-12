@@ -16,7 +16,7 @@ import (
 
 	"phenix-apps/util"
 	"phenix-apps/util/mmcli"
-	"phenix/api/cluster"
+	//"phenix/api/cluster"
 	"phenix/types"
 
 	"github.com/mitchellh/mapstructure"
@@ -69,7 +69,7 @@ var (
 	phenixLocation  string
 	placeholders    = regexp.MustCompile(`(?i)[<]([^<>]+)[>]`)
 	angleBrackets   = regexp.MustCompile(`[<>]`)
-	restoreTime     = regexp.MustCompile(`([0-9][0-9\-_]+)`)
+	restoreTimeRe   = regexp.MustCompile(`([0-9][0-9\-_]+)`)
 	startTimeRe     = regexp.MustCompile(`[\d-]+[T][\d-:]+`)
 	globalTimestamp = timestamp()
 )
@@ -102,7 +102,7 @@ func main() {
 
 	stage := os.Args[1]
 
-	if stage != "configure" && stage != "cleanup" {		
+	if stage != "configure" && stage != "cleanup" {
 		fmt.Print(string(body))
 		return
 	}
@@ -128,7 +128,6 @@ func main() {
 		logger.Fatalf("unable to convert experiment to JSON")
 	}
 
-	
 	fmt.Print(string(body))
 }
 
@@ -176,7 +175,7 @@ func configure(exp *types.Experiment) error {
 		if strings.Contains(restoreSpec.Name, "tar.gz") {
 			extractFromTarGz(restoreSpec)
 
-			if !restoreTime.MatchString(restoreSpec.Name) {
+			if !restoreTimeRe.MatchString(restoreSpec.Name) {
 				continue
 			}
 
@@ -188,7 +187,7 @@ func configure(exp *types.Experiment) error {
 		} else {
 			extractFromZip(restoreSpec)
 
-			if !restoreTime.MatchString(restoreSpec.Name) {
+			if !restoreTimeRe.MatchString(restoreSpec.Name) {
 				continue
 			}
 
@@ -256,7 +255,7 @@ func cleanup(exp *types.Experiment) error {
 
 	archivesAdded := make(map[string]bool)
 
-	for _, archive := range options.Archives {		
+	for _, archive := range options.Archives {
 
 		// If no archive name has been specified
 		// assign the default name
@@ -276,7 +275,7 @@ func cleanup(exp *types.Experiment) error {
 		}
 
 		if strings.ToLower(archive.Directory) == "experiment_directory" {
-			archive.Directory = fmt.Sprintf("%s/%s/files", options.mmFilesDirectory, exp.Spec.ExperimentName())
+			archive.Directory = fmt.Sprintf("%s/%s/files", options.mmFilesDirectory, options.expName)
 			logger.Printf("Archive Output:%v", archive.Directory)
 		}
 
@@ -416,20 +415,32 @@ func getRemoteExpFiles(options *ArchiveOptions) {
 	}
 
 	headNodeFiles := getHeadNodeFiles(options.mmFilesDirectory)
-	expFiles, _ := cluster.GetExperimentFileNames(options.expName)
+	expFiles, _ := GetExperimentFileNames(options.expName)
 	headNode, _ := os.Hostname()
 
-	for _, path := range expFiles {
+	for _, filename := range expFiles {
+
+		// The headNodeFiles use absolute paths
+		// while the expFiles uses the name of the file
+		// in the experiment files directory.  To compare,
+		// the full path for the expFiles needs to be used
+		expFilesPath := fmt.Sprintf("%s/files/%s", options.expName, filename)
+		fullPath := filepath.Join(options.mmFilesDirectory, expFilesPath)
+
+		logger.Printf("Experiment Files Path:%v", expFilesPath)
+		logger.Printf("Full Path:%v", fullPath)
 
 		// Copy all experiment files to the
 		// headnode
-		if _, ok := headNodeFiles[path]; !ok {
-			if err := cluster.CopyFile(path, headNode, nil); err != nil {
-				logger.Printf("copying %s to %s", path, headNode)
+		if _, ok := headNodeFiles[fullPath]; !ok {
+
+			// Use relative path when copying
+			if err := CopyFile(expFilesPath, headNode, nil); err != nil {
+				logger.Printf("copying %s to %s", expFilesPath, headNode)
 			}
 
 			// Add the file to the headnode files
-			headNodeFiles[path] = true
+			headNodeFiles[fullPath] = true
 
 		}
 
@@ -499,18 +510,18 @@ func getArchiveOptions(exp *types.Experiment) *ArchiveOptions {
 
 func removeArchiveFiles(archive *ArchiveSpec, mmFilesDirectory string) {
 
-	for filePath, _ := range archive.files {
+	for path, _ := range archive.files {
 
 		// If the file is part of the minimega path,
 		// then delete the file on all nodes in the cluster
-		if strings.Contains(filePath, mmFilesDirectory) {
-			relativePath, _ := filepath.Rel(mmFilesDirectory, filePath)
+		if strings.Contains(path, mmFilesDirectory) {
+			relativePath, _ := filepath.Rel(mmFilesDirectory, path)
 
 			// minimega file management api works off of
 			// relative paths from the minimega files directory
-			cluster.DeleteFile(relativePath)
+			DeleteFile(relativePath)
 		} else {
-			os.Remove(filePath)
+			os.Remove(path)
 		}
 
 	}
@@ -641,7 +652,7 @@ func replacePlaceholders(input, expName string) string {
 		return input
 	}
 
-	logger.Printf("Matches:%v", matches)
+	//logger.Printf("Matches:%v", matches)
 
 	for _, variable := range matches {
 		switch variable[1] {
@@ -661,7 +672,7 @@ func replacePlaceholders(input, expName string) string {
 	// Replace all the angle brackets
 	input = angleBrackets.ReplaceAllString(input, "")
 
-	logger.Printf("Replaced:%v", input)
+	//logger.Printf("Replaced:%v", input)
 
 	return input
 
@@ -669,7 +680,7 @@ func replacePlaceholders(input, expName string) string {
 
 func getRestoreTime(filename string) string {
 
-	matches := restoreTime.FindAllStringSubmatch(filename, -1)
+	matches := restoreTimeRe.FindAllStringSubmatch(filename, -1)
 
 	if matches == nil {
 		return filename
