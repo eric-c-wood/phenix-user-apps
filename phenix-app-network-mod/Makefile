@@ -8,7 +8,7 @@ VERSION := $(VER) (commit $(COMMIT)) $(DATE)
 
 GOSOURCES   := $(shell find . \( -name '*.go' \))
 
-all: clean bin/phenix-app-network-mod fmt
+all: clean fmt bin/phenix-app-network-mod
 
 fmt: 
 	go fmt $(GOSOURCES)

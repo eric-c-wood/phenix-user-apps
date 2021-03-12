@@ -24,7 +24,7 @@ PATH := $(GOBIN):$(PATH)
 # Export GOBIN env variable so `go install` picks it up correctly.
 export GOBIN
 
-all: $(shell sudo chmod -R 0777 $(PREFIX)) clean bin/phenix-app-archive-experiment fmt
+all: $(shell sudo chmod -R 0777 $(PREFIX)) clean fmt bin/phenix-app-archive-experiment
 
 bin/go-bindata:
 	go install github.com/go-bindata/go-bindata/v3/go-bindata
