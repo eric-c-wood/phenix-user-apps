@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -146,7 +147,65 @@ func configure(exp *types.Experiment) error {
 	}
 
 	phenixLocation = getParentProcLocation()
+
+	if len(phenixLocation) == 0 {
+		logger.Print("running instance of phenix could not be found")
+		return nil
+	}
+
 	options.expName = exp.Spec.ExperimentName()
+
+	// Avoid locking up the UI while
+	// restoring the experiment
+
+	// TODO start a new process to
+	// avoid locking the UI
+	processRetrievals(options)
+
+	return nil
+
+}
+
+func cleanup(exp *types.Experiment) error {
+
+	options := getArchiveOptions(exp)
+
+	// Make sure that an archive was specified
+	if options == nil {
+		logger.Print("no experiment-archive apps were found")
+		return nil
+	}
+
+	phenixLocation = getParentProcLocation()
+
+	if len(phenixLocation) == 0 {
+		logger.Print("running instance of phenix could not be found")
+		return nil
+	}
+
+	// Avoid locking up the UI while
+	// the archiving operation completes
+
+	// TODO start a new process to
+	// avoid locking the UI
+	processArchives(exp, options)
+
+	return nil
+}
+
+func processRetrievals(options *ArchiveOptions) {
+
+	progressTerminal, progressProcess, err := launchTerminal()
+
+	if err != nil {
+		return
+	}
+
+	defer progressTerminal.Close()
+	defer closeProcess(progressProcess)
+
+	progressTerminal.WriteString("\n")
+	time.Sleep(1 * time.Second)
 
 	if len(options.RestorePath) == 0 {
 		options.RestorePath = "/phenix/configurations"
@@ -155,11 +214,17 @@ func configure(exp *types.Experiment) error {
 	// Clear the restoration path
 	os.RemoveAll(options.RestorePath)
 
+	totalRetrievals := len(options.Retrievals)
+	counter := 1
+
 	// Add the restore specification to obtain
 	// the experiment configuration files
 	restoreConfigs := getExperimentRetrieval(options)
 
 	for _, restoreSpec := range options.Retrievals {
+
+		progressTerminal.WriteString(fmt.Sprintf("Restoring %d of %d archives\n", counter, totalRetrievals))
+		counter += 1
 
 		// Skip over specifications wihtout an archive name
 		if len(restoreSpec.Name) == 0 {
@@ -183,6 +248,7 @@ func configure(exp *types.Experiment) error {
 			restoreConfigs.Name = restoreSpec.Name
 			if err := extractFromTarGz(restoreConfigs); err != nil {
 				logger.Printf("unable to extract from %v error:%v", restoreSpec.Name, err)
+				progressTerminal.WriteString(fmt.Sprintf("unable to extract from %v error:%v\n", restoreSpec.Name, err))
 			}
 		} else {
 			extractFromZip(restoreSpec)
@@ -195,6 +261,7 @@ func configure(exp *types.Experiment) error {
 			restoreConfigs.Name = restoreSpec.Name
 			if err := extractFromZip(restoreConfigs); err != nil {
 				logger.Printf("unable to extract from %v", restoreSpec.Name)
+				progressTerminal.WriteString(fmt.Sprintf("unable to extract from %v error:%v\n", restoreSpec.Name, err))
 			}
 		}
 
@@ -211,40 +278,38 @@ func configure(exp *types.Experiment) error {
 	logger.Printf("Experiment Configuration:%v", expConfigPath)
 
 	if len(expConfigPath) == 0 {
-		return nil
+		return
 	}
 
 	if !pathExists(expConfigPath) {
 		logger.Printf("%v no longer exists", expConfigPath)
-		return nil
+		progressTerminal.WriteString(fmt.Sprintf("%v no longer exists\n", expConfigPath))
+		return
 	}
 
 	restoredExp, err := DecodeExperimentFromFile(expConfigPath)
 
 	if err != nil {
-		return err
+		progressTerminal.WriteString(fmt.Sprintf("unable to read experiment from %v\n", expConfigPath))
+		return
 	}
 
 	savedTime := getRestoreTime(filepath.Dir(restoreConfigs.Name))
 
-	logger.Printf("Restored:%v", restoredExp.Spec.ExperimentName())
-	restoreExperiment(restoredExp.Spec.ExperimentName(), expConfigPath, savedTime)
+	newExpName, err := restoreExperiment(restoredExp.Spec.ExperimentName(), expConfigPath, savedTime)
 
-	return nil
+	if err != nil {
+		progressTerminal.WriteString(fmt.Sprintf("unable to restore experiment from %v\n", expConfigPath))
+		return
+	}
+
+	progressTerminal.WriteString(fmt.Sprintf("Experiment %v has been restored as %v\n", options.expName, newExpName))
+
+	return
 
 }
 
-func cleanup(exp *types.Experiment) error {
-
-	options := getArchiveOptions(exp)
-
-	// Make sure that an archive was specified
-	if options == nil {
-		logger.Print("no experiment-archive apps were found")
-		return nil
-	}
-
-	phenixLocation = getParentProcLocation()
+func processArchives(exp *types.Experiment, options *ArchiveOptions) {
 
 	options.expName = exp.Spec.ExperimentName()
 	options.defaultArchiveName = defaultArchiveName(options.expName)
@@ -255,7 +320,26 @@ func cleanup(exp *types.Experiment) error {
 
 	archivesAdded := make(map[string]bool)
 
+	progressTerminal, progressProcess, err := launchTerminal()
+
+	if err != nil {
+		return
+	}
+
+	defer progressTerminal.Close()
+	defer closeProcess(progressProcess)
+
+	totalArchives := len(options.Archives)
+	counter := 1
+
+	progressTerminal.WriteString("\n")
+
+	time.Sleep(1 * time.Second)
+
 	for _, archive := range options.Archives {
+
+		progressTerminal.WriteString(fmt.Sprintf("Creating %d of %d archives\n", counter, totalArchives))
+		counter += 1
 
 		// If no archive name has been specified
 		// assign the default name
@@ -314,7 +398,8 @@ func cleanup(exp *types.Experiment) error {
 
 				if err := createTarGz(archive); err != nil {
 					logger.Printf("unable to create tar gz %v", err)
-					return fmt.Errorf("unable to create tar gz %v", err)
+					progressTerminal.WriteString(fmt.Sprintf("unable to create tar gz %v\n", err))
+					return
 
 				}
 
@@ -327,7 +412,8 @@ func cleanup(exp *types.Experiment) error {
 
 				if err := createZipArchive(archive); err != nil {
 					logger.Printf("unable to create zip %v", err)
-					return fmt.Errorf("unable to create zip %v", err)
+					progressTerminal.WriteString(fmt.Sprintf("unable to create zip %v\n", err))
+					return
 				}
 
 			}
@@ -340,7 +426,16 @@ func cleanup(exp *types.Experiment) error {
 
 	}
 
-	return nil
+	progressTerminal.WriteString("Archives have been created.  Closing window\n")
+
+	return
+
+}
+
+func closeProcess(proc *os.Process) {
+
+	time.Sleep(5 * time.Second)
+	proc.Kill()
 
 }
 
@@ -353,7 +448,6 @@ func getArchiveFiles(archive *ArchiveSpec, options *ArchiveOptions) {
 		getRemoteExpFiles(options)
 	}
 
-	logger.Printf("Directory:%v Filters:%v", archive.Directory, archive.Filters)
 	archive.files = getFileList(archive.Directory, archive.Filters)
 
 	// Get a list of files to put into the archive
@@ -515,7 +609,11 @@ func removeArchiveFiles(archive *ArchiveSpec, mmFilesDirectory string) {
 		// If the file is part of the minimega path,
 		// then delete the file on all nodes in the cluster
 		if strings.Contains(path, mmFilesDirectory) {
-			relativePath, _ := filepath.Rel(mmFilesDirectory, path)
+			relativePath, err := filepath.Rel(mmFilesDirectory, path)
+
+			if err != nil {
+				continue
+			}
 
 			// minimega file management api works off of
 			// relative paths from the minimega files directory
@@ -548,7 +646,7 @@ func addExpConfigFiles(exp *types.Experiment, options *ArchiveOptions) {
 		Name:      options.defaultArchiveName,
 		Directory: dir,
 		Cleanup:   true,
-		Type:      "targz",
+		Type:      "zip",
 	}
 
 	options.Archives = append(options.Archives, archive)
@@ -561,7 +659,6 @@ func getParentProcLocation() string {
 	cmd := exec.Command("ls", "-alht", fmt.Sprintf("/proc/%d/exe", os.Getppid()))
 	cmd.Stdout = &out
 
-	logger.Printf("Command:%v", cmd.String())
 	err := cmd.Run()
 
 	if err != nil {
@@ -572,7 +669,7 @@ func getParentProcLocation() string {
 	binPath := strings.Split(out.String(), "-> ")[1]
 	binPath = strings.ReplaceAll(binPath, "\n", "")
 
-	logger.Printf("Output:%v", binPath)
+	logger.Printf("Phenix binary found:%v", binPath)
 
 	return binPath
 
@@ -652,8 +749,6 @@ func replacePlaceholders(input, expName string) string {
 		return input
 	}
 
-	//logger.Printf("Matches:%v", matches)
-
 	for _, variable := range matches {
 		switch variable[1] {
 		case "timestamp":
@@ -672,8 +767,6 @@ func replacePlaceholders(input, expName string) string {
 	// Replace all the angle brackets
 	input = angleBrackets.ReplaceAllString(input, "")
 
-	//logger.Printf("Replaced:%v", input)
-
 	return input
 
 }
@@ -690,12 +783,12 @@ func getRestoreTime(filename string) string {
 
 }
 
-func restoreExperiment(expName, expConfigPath, savedTime string) error {
+func restoreExperiment(expName, expConfigPath, savedTime string) (string, error) {
 
 	// Make sure phenix is running
 	if len(phenixLocation) == 0 {
 		logger.Print("phenix was not found running")
-		return fmt.Errorf("phenix was not found running")
+		return "", fmt.Errorf("phenix was not found running")
 	}
 
 	var newExpName string
@@ -716,10 +809,10 @@ func restoreExperiment(expName, expConfigPath, savedTime string) error {
 
 	if err != nil {
 		logger.Printf("can not create %v", expConfigPath)
-		return fmt.Errorf("can not create %v", expConfigPath)
+		return "", fmt.Errorf("can not create %v", expConfigPath)
 	}
 
-	return nil
+	return newExpName, nil
 
 }
 
@@ -729,14 +822,8 @@ func updateExpConfig(expConfigPath, oldExpName, expName string) (string, error) 
 		return "", fmt.Errorf("path %v does not exist", expConfigPath)
 	}
 
-	var (
-		err    error
-		output *os.File
-		fh     *os.File
-	)
-
 	tmpPath := filepath.Join(filepath.Dir(expConfigPath), fmt.Sprintf("%s.yml", expName))
-	output, err = os.Create(tmpPath)
+	output, err := os.Create(tmpPath)
 	defer output.Close()
 
 	if err != nil {
@@ -746,7 +833,7 @@ func updateExpConfig(expConfigPath, oldExpName, expName string) (string, error) 
 
 	bufferedOut := bufio.NewWriter(output)
 
-	fh, err = os.Open(expConfigPath)
+	fh, err := os.Open(expConfigPath)
 	defer fh.Close()
 
 	if err != nil {
@@ -793,4 +880,109 @@ func deleteExpConfig(expName string) error {
 	}
 
 	return nil
+}
+
+func launchTerminal() (*os.File, *os.Process, error) {
+
+	// Try to locate a terminal to launch
+	terminalName := "gnome-terminal"
+	terminalPath, err := exec.LookPath(terminalName)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to locate %v", terminalName)
+	}
+
+	cmd := exec.Command(terminalPath)
+
+	if err := cmd.Run(); err != nil {
+		logger.Printf("unable to launch %v", terminalName)
+		return nil, nil, fmt.Errorf("unable to launch %v", terminalName)
+	}
+
+	pid, tty, err := getLastTerm()
+
+	if err != nil {
+		logger.Print("unable to find the last terminal opened error:%v", err)
+		return nil, nil, fmt.Errorf("unable to find the last terminal opened error:%v", err)
+	}
+
+	termFile, err := os.OpenFile(tty, os.O_RDWR, 0644)
+
+	if err != nil {
+		logger.Printf("unable to open %v err:%v", tty, err)
+		return nil, nil, fmt.Errorf("unable to open %v", tty)
+	}
+
+	intPid, _ := strconv.Atoi(pid)
+	ttyProcess, err := os.FindProcess(intPid)
+
+	if err != nil {
+		logger.Printf("unable to find process %v err:%v", intPid, err)
+		return nil, nil, fmt.Errorf("unable to find process %v", intPid)
+	}
+
+	return termFile, ttyProcess, nil
+
+}
+
+/*
+	This function tries to locate the last
+	gnome-terminal that was opened in order to
+	write to it as a progress window.  This function
+	will fail if the user opens another terminal window
+	immediately after this user app launches a new terminal
+	window.  This situation should be unlikely but an
+	alternative method should be explored in the future
+*/
+
+func getLastTerm() (string, string, error) {
+
+	// Try to locate a terminal to launch
+	cmd := "ps"
+	psPath, err := exec.LookPath(cmd)
+
+	if err != nil {
+		return "", "", fmt.Errorf("unable to locate %v", cmd)
+	}
+
+	cmd = "grep"
+	grepPath, err := exec.LookPath(cmd)
+
+	if err != nil {
+		return "", "", fmt.Errorf("unable to locate %v", cmd)
+	}
+
+	psCmd := exec.Command(psPath, "-au")
+	psStdout, _ := psCmd.StdoutPipe()
+	defer psStdout.Close()
+
+	grepCmd := exec.Command(grepPath, "bash")
+	grepCmd.Stdin = psStdout
+
+	psCmd.Start()
+
+	output, _ := grepCmd.Output()
+
+	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+	scanner.Split(bufio.ScanLines)
+
+	var (
+		pid string
+		tty string
+	)
+
+	// Find the last bash terminal opened
+	for scanner.Scan() {
+
+		if strings.Contains(scanner.Text(), "/usr/bin") {
+			continue
+		}
+
+		fields := strings.Fields(scanner.Text())
+		pid = fields[1]
+		tty = fields[6]
+	}
+
+	return pid, fmt.Sprintf("/dev/%s", tty), nil
+
 }
