@@ -42,7 +42,7 @@ spec:
         type: ethernet      
   - type: Router
     labels:
-      ntp-server: "true"
+      ntp-server: eth2
     general:
       hostname: site_A_router
       snapshot: true
@@ -75,7 +75,7 @@ spec:
           - network: 10.0.0.0/24
   - type: Router
     labels:
-      ntp-server: "true"
+      ntp-server: eth2
     general:
       hostname: site_B_router
       snapshot: true
@@ -108,7 +108,7 @@ spec:
           - network: 10.0.1.0/24 
   - type: Router
     labels:
-      ntp-server: "true"
+      ntp-server: eth2
     general:
       hostname: internet_router
       snapshot: true
