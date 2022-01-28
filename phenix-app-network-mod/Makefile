@@ -8,13 +8,16 @@ VERSION := $(VER) (commit $(COMMIT)) $(DATE)
 
 GOSOURCES   := $(shell find src \( -name '*.go' \))
 
-all: clean fmt bin/phenix-app-network-mod
+all: clean fmt bin/phenix-app-network-mod install
 
 fmt: 
 	go fmt $(GOSOURCES)
 
 clean:
 	$(RM) bin/phenix-app-network-mod
+
+install:
+	sudo cp bin/phenix-app-network-mod /usr/local/bin
 
 bin/phenix-app-network-mod: $(GOSOURCES)	
 	mkdir -p bin
