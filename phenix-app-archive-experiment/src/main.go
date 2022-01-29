@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -17,7 +17,6 @@ import (
 
 	"phenix-apps/util"
 	"phenix-apps/util/mmcli"
-	//"phenix/api/cluster"
 	"phenix/types"
 
 	"github.com/mitchellh/mapstructure"
@@ -74,9 +73,21 @@ var (
 	startTimeRe     = regexp.MustCompile(`[\d-]+[T][\d-:]+`)
 	globalTimestamp = timestamp()
 	storeEndPoint   = "--store.endpoint=bolt:///etc/phenix/store.bdb"
+	defaultMMDir    = "/phenix/images"
 )
 
 func main() {
+
+	//Add some command line flags
+	var (
+		stage   string
+		expName string
+	)
+
+	flag.StringVar(&stage, "stage", "", "Set the lifecycle experiment stage")
+	flag.StringVar(&expName, "experiment", "", "Set the name of the experiment")
+
+	flag.Parse()
 
 	out := os.Stderr
 
@@ -93,19 +104,35 @@ func main() {
 
 	logger = log.New(out, " archive-experiment ", log.Ldate|log.Ltime|log.Lmsgprefix)
 
-	if len(os.Args) != 2 {
+	
+	if (3 - flag.NFlag() - flag.NArg()) != 1 {
 		logger.Fatal("incorrect amount of args provided")
 	}
 
-	body, err := ioutil.ReadAll(os.Stdin)
-	if err != nil {
-		logger.Fatal("unable to read JSON from STDIN")
+	// Check to see if positional arguments or flags were used
+	if len(expName) == 0 {
+		expName = flag.Arg(0)
 	}
 
-	stage := os.Args[1]
+	
+	if len(stage) == 0 {
+		if len(expName) == 0 {
+			stage = flag.Arg(1)
+		} else {
+			stage = flag.Arg(0)
+		}
+	}
+	
+	// Get the JSON using the Phenix executable
+	body, err := getPhenixJSON(expName)
+
+	if err != nil {
+		fmt.Printf("Unable to parse experiment JSON %v\n", err)
+		return
+	}
 
 	if stage != "configure" && stage != "cleanup" {
-		fmt.Print(string(body))
+		fmt.Printf("stage %v is not supported\n", stage)
 		return
 	}
 
@@ -115,26 +142,24 @@ func main() {
 
 	exp, err := DecodeExperiment(body)
 	if err != nil {
+		fmt.Printf("decoding experiment: %v\n", err)
 		logger.Fatalf("decoding experiment: %v", err)
 	}
 
 	switch stage {
 	case "configure":
 		if err := configure(exp); err != nil {
+			fmt.Printf("failed to execute configure stage: %v\n", err)
 			logger.Fatalf("failed to execute configure stage: %v", err)
 		}
 	case "cleanup":
 		if err := cleanup(exp); err != nil {
+			fmt.Printf("failed to execute cleanup stage: %v\n", err)
 			logger.Fatalf("failed to execute cleanup stage: %v", err)
 		}
 	}
 
-	body, err = json.Marshal(exp)
-	if err != nil {
-		logger.Fatalf("unable to convert experiment to JSON")
-	}
-
-	fmt.Print(string(body))
+	
 }
 
 func configure(exp *types.Experiment) error {
@@ -147,14 +172,8 @@ func configure(exp *types.Experiment) error {
 	}
 
 	if len(options.Retrievals) == 0 {
+		fmt.Println("No retrievals were specified")
 		logger.Print("No retrievals were specified")
-		return nil
-	}
-
-	phenixLocation = getParentProcLocation()
-
-	if len(phenixLocation) == 0 {
-		logger.Print("running instance of phenix could not be found")
 		return nil
 	}
 
@@ -177,14 +196,8 @@ func cleanup(exp *types.Experiment) error {
 
 	// Make sure that an archive was specified
 	if options == nil {
+		fmt.Println("no experiment-archive apps were found")
 		logger.Print("no experiment-archive apps were found")
-		return nil
-	}
-
-	phenixLocation = getParentProcLocation()
-
-	if len(phenixLocation) == 0 {
-		logger.Print("running instance of phenix could not be found")
 		return nil
 	}
 
@@ -277,6 +290,7 @@ func processRetrievals(options *ArchiveOptions) {
 	restoredExp, err := DecodeExperimentFromFile(expConfigPath)
 
 	if err != nil {
+		fmt.Printf("unable to read experiment from %v\n", expConfigPath)
 		logger.Printf("unable to read experiment from %v", expConfigPath)
 		return
 	}
@@ -300,7 +314,7 @@ func processArchives(exp *types.Experiment, options *ArchiveOptions) {
 
 	options.expName = exp.Spec.ExperimentName()
 	options.defaultArchiveName = defaultArchiveName(options.expName)
-	options.mmFilesDirectory, _ = getMMFilesDirectory(options.expName)
+	options.mmFilesDirectory = getMMFilesDirectory(options.expName)
 
 	// Add the experiment configuration files to an archive
 	addExpConfigFiles(exp, options)
@@ -521,12 +535,10 @@ func defaultArchiveName(expName string) string {
 
 func timestamp() string {
 
-	refTime := time.Now()
-	return fmt.Sprintf("%d-%02d-%02d_%02d%02d", refTime.Year(), refTime.Month(),
-		refTime.Day(), refTime.Hour(), refTime.Minute())
+	return time.Now().Format("2006-01-02_1500")
 }
 
-func getMMFilesDirectory(expName string) (string, error) {
+func getMMFilesDirectory(expName string) string {
 
 	cmd := mmcli.NewCommand(mmcli.Namespace(expName))
 	cmd.Command = "vm info"
@@ -535,14 +547,13 @@ func getMMFilesDirectory(expName string) (string, error) {
 	status := mmcli.RunTabular(cmd)
 
 	if len(status) == 0 {
-		logger.Print("unable to get minimega files directory")
-		return "", fmt.Errorf("unable to get minimega files directory")
+		return defaultMMDir
 	}
 
 	// The location of any snapshot should point to the
 	// minimega "files" directory
 	snapshotPath := strings.Split(status[0]["disks"], ",")[0]
-	return filepath.Dir(snapshotPath), nil
+	return filepath.Dir(snapshotPath)
 
 }
 
@@ -617,25 +628,132 @@ func addExpConfigFiles(exp *types.Experiment, options *ArchiveOptions) {
 
 }
 
-func getParentProcLocation() string {
+func getProcessLocation(processName string) (string, error) {
 
-	var out bytes.Buffer
-	cmd := exec.Command("ls", "-alht", fmt.Sprintf("/proc/%d/exe", os.Getppid()))
-	cmd.Stdout = &out
-
-	err := cmd.Run()
+	//Try to find the process in the $PATH
+	processPath, err := getProcessFromPath(processName)
 
 	if err != nil {
-		logger.Printf("Error:%v", err)
-		return ""
+		//Try to find the process in memory
+		return getProcessFromMemory(processName)
+	}
+
+	return processPath, nil
+
+}
+
+func getProcessFromPath(processName string) (string, error) {
+
+	var out bytes.Buffer
+	cmdName := "which"
+	cmdPath, err := exec.LookPath(cmdName)
+
+	if err != nil {
+		return "", fmt.Errorf("unable to locate %v", cmdName)
+	}
+
+	cmd := exec.Command(cmdPath, processName)
+	cmd.Stdout = &out
+
+	err = cmd.Run()
+
+	if err != nil {
+		logger.Printf("Error running %v-%v", cmdPath, err)
+		return "", fmt.Errorf("Error running %v-%v", cmdPath, err)
+	}
+
+	if len(out.String()) == 0 {
+		logger.Printf("Unable to find %v-%v", processName)
+		return "", fmt.Errorf("Unable to find %v-%v", processName)
+	}
+
+	binPath := strings.ReplaceAll(out.String(), "\n", "")
+
+	logger.Printf("Binary found:%v", binPath)
+
+	return binPath, nil
+
+}
+
+func getProcessLocationFromPid(pid int) (string, error) {
+
+	var out bytes.Buffer
+	cmdName := "ls"
+	lsPath, err := exec.LookPath(cmdName)
+
+	if err != nil {
+		return "", fmt.Errorf("unable to locate %v", cmdName)
+	}
+
+	cmd := exec.Command(lsPath, "-alht", fmt.Sprintf("/proc/%d/exe", pid))
+	cmd.Stdout = &out
+
+	err = cmd.Run()
+
+	if err != nil {
+		logger.Printf("Error running %v-%v", cmdName, err)
+		return "", fmt.Errorf("Error running %v-%v", cmdName, err)
 	}
 
 	binPath := strings.Split(out.String(), "-> ")[1]
 	binPath = strings.ReplaceAll(binPath, "\n", "")
 
-	logger.Printf("Phenix binary found:%v", binPath)
+	logger.Printf("Binary found:%v", binPath)
 
-	return binPath
+	return binPath, nil
+
+}
+
+func getProcessFromMemory(processName string) (string, error) {
+
+	cmd := "ps"
+	psPath, err := exec.LookPath(cmd)
+
+	if err != nil {
+		return "", fmt.Errorf("unable to locate %v", psPath)
+	}
+
+	cmd = "grep"
+	grepPath, err := exec.LookPath(cmd)
+
+	if err != nil {
+		return "", fmt.Errorf("unable to locate %v", grepPath)
+	}
+
+	psCmd := exec.Command(psPath, "-e")
+	psStdout, _ := psCmd.StdoutPipe()
+	defer psStdout.Close()
+
+	grepCmd := exec.Command(grepPath, processName)
+	grepCmd.Stdin = psStdout
+
+	psCmd.Start()
+
+	output, _ := grepCmd.Output()
+
+	if len(output) == 0 {
+		logger.Printf("Unable to find %v-%v", processName)
+		return "", fmt.Errorf("Unable to find %v-%v", processName)
+	}
+
+	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+	scanner.Split(bufio.ScanLines)
+
+	for scanner.Scan() {
+		if !strings.Contains(scanner.Text(), processName) {
+			continue
+		}
+
+		intPid, err := strconv.Atoi(strings.Fields(scanner.Text())[0])
+
+		if err == nil {
+			return getProcessLocationFromPid(intPid)
+		}
+
+	}
+
+	logger.Printf("unable to locate %v", processName)
+	return "", fmt.Errorf("unable to locate %v", processName)
 
 }
 
@@ -751,8 +869,8 @@ func restoreExperiment(expName, expConfigPath, savedTime string) (string, error)
 
 	// Make sure phenix is running
 	if len(phenixLocation) == 0 {
-		logger.Print("phenix was not found running")
-		return "", fmt.Errorf("phenix was not found running")
+		logger.Print("phenix was not found")
+		return "", fmt.Errorf("phenix was not found")
 	}
 
 	var newExpName string
@@ -863,7 +981,7 @@ func launchTerminal() (*os.File, *os.Process, error) {
 		return nil, nil, fmt.Errorf("unable to launch %v", terminalName)
 	}
 
-	pid, tty, err := getLastTerm()
+	pid, tty, err := getLastTerminal()
 
 	if err != nil {
 		logger.Print("unable to find the last terminal opened error:%v", err)
@@ -899,7 +1017,7 @@ func launchTerminal() (*os.File, *os.Process, error) {
 	alternative method should be explored in the future
 */
 
-func getLastTerm() (string, string, error) {
+func getLastTerminal() (string, string, error) {
 
 	// Try to locate a terminal to launch
 	cmd := "ps"
@@ -957,5 +1075,30 @@ func getLastTerm() (string, string, error) {
 
 	logger.Printf("Terminal path %v", tty)
 	return pid, fmt.Sprintf("/dev/%s", tty), nil
+
+}
+
+func getPhenixJSON(experimentName string) ([]byte, error) {
+
+	procLocation, err := getProcessLocation("phenix")
+
+	if err != nil {
+		logger.Print("phenix could not be found")
+		return nil, fmt.Errorf("phenix could not be found - %v", err)
+	}
+
+	phenixLocation = procLocation
+	var out bytes.Buffer
+
+	cmd := exec.Command(phenixLocation, "util", "app-json", experimentName, storeEndPoint)
+	cmd.Stdout = &out
+
+	err = cmd.Run()
+
+	if err != nil {
+		logger.Printf("can not get JSON %v", experimentName)
+		return nil, fmt.Errorf("can not get JSON %v", experimentName)
+	}
+	return out.Bytes(), nil
 
 }
