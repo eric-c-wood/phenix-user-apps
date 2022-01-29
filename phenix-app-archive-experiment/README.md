@@ -2,11 +2,11 @@
 
 The `archive-experiment` creates and/or restores one or more user defined archives. An archive is defined by a user specified collection of files to compress.  An archive can be restored by specifying the archive to restore along with with the output location of restored files.  Since archiving is dependent on file size and the number of files, it can take a long time which would be unsatisfactory to a Web UI user.  Consequently, archiving an experiment when an experiment is stopped could lock up the UI with no feedback mechanism except for errors.  It would be nice to extend the Phenix user app lifecycle to allow for status updates and run in a separate thread to accomodate long running user apps.  The restore feature of this user app is meant to restore an experiment's initial state from an archive.  Restoring an experiment is the same as creating an experiment.  Consequently, restoration of a previous experiment did not fit well in the Phenix user app lifecycle.
 
-Since this user app does not fit well with the current Phenix user app lifecyle, a standalone version of this app was created.  It only receives two arguments namely the `experiment name` and the `lifecycle stage`.  The `cleanup` lifecycle is used for archiving while `configure` lifestyle is used for restoring an experiment.  An example invocation is shown below:
+Since this user app does not fit well with the current Phenix user app lifecyle, a standalone version of this app was created.  It only receives two arguments namely the `experiment name` and the `lifecycle stage`.  The `cleanup` lifecycle is used for archiving while the `configure` lifestyle is used for restoring an experiment.  An example invocation is shown below:
 
 `phenix-app-archive-experiment --experiment test --stage cleanup`
 
-The use app does need to know the location of the Phenix datastore.  Consequently, define and pass the `PHENIX_STORE_ENDPOINT` environment variable or the default location of `bolt://etc/phenix/store.bdb` will be used.  
+This user app does need to know the location of the Phenix datastore.  Consequently, define and pass the `PHENIX_STORE_ENDPOINT` environment variable or the default location of `bolt://etc/phenix/store.bdb` will be used.  
 
 In addition, an environment variable for the log file should be defined as this user app makes use of a log file.  The default location is `/var/log/phenix/phenix.log` if the `PHENIX_LOG_FILE` environment variable is not defined.
 
