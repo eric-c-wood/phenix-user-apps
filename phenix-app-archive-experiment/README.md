@@ -1,6 +1,14 @@
-## archive-experiment
+## archive-experiment standalone
 
-The `archive-experiment` creates and/or restores one or more user defined archives. An archive is defined by a user specified collection of files to compress.  An archive can be restored by specifying the archive to restore along with with the output location of restored files.  An archive will be created when an experiment is stopped from the Web UI.  Archives will be restored when an experiment is created.  Ideally, the restoration of an archive will create an experiment rather than running when an experiment is being created.  The `restore` feature of this app does not fit well into the current phenix user app lifecycle and may be best implemented as a standalone executable.  
+The `archive-experiment` creates and/or restores one or more user defined archives. An archive is defined by a user specified collection of files to compress.  An archive can be restored by specifying the archive to restore along with with the output location of restored files.  Since archiving is dependent on file size and the number of files, it can take a long time which would be unsatisfactory to a Web UI user.  Consequently, archiving an experiment when an experiment is stopped could lock up the UI with no feedback mechanism except for errors.  It would be nice to extend the Phenix user app lifecycle to allow for status updates and run in a separate thread to accomodate long running user apps.  The restore feature of this user app is meant to restore an experiment's initial state from an archive.  Restoring an experiment is the same as creating an experiment.  Consequently, restoration of a previous experiment did not fit well in the Phenix user app lifecycle.
+
+Since this user app does not fit well with the current Phenix user app lifecyle, a standalone version of this app was created.  It only receives two arguments namely the `experiment name` and the `lifecycle stage`.  The `cleanup` lifecycle is used for archiving while `configure` lifestyle is used for restoring an experiment.  An example invocation is shown below:
+
+`phenix-app-archive-experiment --experiment test --stage cleanup`
+
+The use app does need to know the location of the Phenix datastore.  Consequently, define and pass the `PHENIX_STORE_ENDPOINT` environment variable or the default location of `bolt://etc/phenix/store.bdb` will be used.  
+
+In addition, an environment variable for the log file should be defined as this user app makes use of a log file.  The default location is `/var/log/phenix/phenix.log` if the `PHENIX_LOG_FILE` environment variable is not defined.
 
 ### archive
 
@@ -124,7 +132,7 @@ spec:
 
 ### Restore an archive
 
-Restoration of an archive consists of creating an experiment using a saved experiment configuration file and restoring any user defined files.  The restored experiment will have the name `<experiment_name>_<saved_date_time>`.  If the `<saved_date_time>` can not be extracted from the archive name, then the original experiment name will be used.  If the original experiment name already exists in the experiment data store, then the experiment will not be restored.  Perhaps, in the future, an option to delete an existing experiment will be added to the restoration specification.  As mentioned, the restoration option does not fit well with the current phenix experiment lifecycle.  Consequently, the restoration feature of this app will most likely be moved to a standalone executable.  
+Restoration of an archive consists of creating an experiment using a saved experiment configuration file and restoring any user defined files.  The restored experiment will have the name `<experiment_name>_<saved_date_time>`.  If the `<saved_date_time>` can not be extracted from the archive name, then the original experiment name will be used.  If the original experiment name already exists in the experiment data store, then the experiment will not be restored.  Perhaps, in the future, an option to delete an existing experiment will be added to the restoration specification.  The restoration of an experiment will occur during the `configure` stage as that was the best option with regards to the Phenix user app lifecycle.
 
 An archive can be restored by specifying the following three fields under the `retrievals` list:  
 

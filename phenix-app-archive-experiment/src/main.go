@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -82,6 +81,7 @@ func main() {
 	var (
 		stage   string
 		expName string
+		logPath string
 	)
 
 	flag.StringVar(&stage, "stage", "", "Set the lifecycle experiment stage")
@@ -91,20 +91,24 @@ func main() {
 
 	out := os.Stderr
 
-	if env, ok := os.LookupEnv("PHENIX_LOG_FILE"); ok {
-		var err error
+	env, ok := os.LookupEnv("PHENIX_LOG_FILE")
 
-		out, err = os.OpenFile(env, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			log.Fatal("unable to open phenix log file for writing")
-		}
-
-		defer out.Close()
+	if !ok {
+		logPath = "/var/log/phenix/phenix.log"
 	}
+
+	logPath = env
+	var err error
+
+	out, err = os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatal("unable to open phenix log file for writing")
+	}
+
+	defer out.Close()
 
 	logger = log.New(out, " archive-experiment ", log.Ldate|log.Ltime|log.Lmsgprefix)
 
-	
 	if (3 - flag.NFlag() - flag.NArg()) != 1 {
 		logger.Fatal("incorrect amount of args provided")
 	}
@@ -114,7 +118,6 @@ func main() {
 		expName = flag.Arg(0)
 	}
 
-	
 	if len(stage) == 0 {
 		if len(expName) == 0 {
 			stage = flag.Arg(1)
@@ -122,7 +125,7 @@ func main() {
 			stage = flag.Arg(0)
 		}
 	}
-	
+
 	// Get the JSON using the Phenix executable
 	body, err := getPhenixJSON(expName)
 
@@ -159,7 +162,6 @@ func main() {
 		}
 	}
 
-	
 }
 
 func configure(exp *types.Experiment) error {
