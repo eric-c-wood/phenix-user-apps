@@ -21,4 +21,4 @@ install:
 
 bin/phenix-app-archive-experiment: $(GOSOURCES)
 	mkdir -p bin
-	CGO_ENABLED=0 GOOS=linux go build -v -mod=vendor -ldflags="-X 'phenix-app-archive-experiment/version.Version=$(VERSION)' -s -w" -trimpath -o bin/phenix-app-archive-experiment $(GOSOURCES)
+	CGO_ENABLED=0 GOOS=linux go build -a -v -mod=vendor -ldflags="-X 'phenix-app-archive-experiment/version.Version=$(VERSION)' -s -w" -trimpath -o bin/phenix-app-archive-experiment $(GOSOURCES)
