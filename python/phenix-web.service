@@ -1,0 +1,15 @@
+[Unit]
+Description=Start phenix web server
+Requires=minimega.service 
+After=minimega.service 
+Before=miniweb.service
+Wants=miniweb.service
+
+[Service]
+Type=simple
+Environment=PHENIX_STORE_ENDPOINT=bolt:///etc/phenix/store.bdb
+ExecStart=/bin/bash -c "PATH=$PATH:/opt/phenix/bin /opt/phenix/bin/phenix ui"
+StandardOutput=journal+console
+
+[Install]
+WantedBy=multi-user.target
