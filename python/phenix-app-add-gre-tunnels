@@ -1,0 +1,143 @@
+#!/usr/bin/env python3
+
+import sys
+import json
+import subprocess
+import re
+
+def write_file(output_path, data):
+	with open(output_path,'w') as output_file:
+		output_file.write(data)
+
+def extract_app(exp,name='add-gre-tunnels'):
+	apps = exp['spec']['scenario']['apps']
+
+	for app in apps:
+		if app['name'] == name:
+			return app
+
+def load_gre_module():
+	load_gre_cmd = ['modprobe','ip_gre']
+	
+	subprocess.call(' '.join(load_gre_cmd),shell=True,stdout=subprocess.DEVNULL)
+
+def add_virtual_interface(name,iface_type='veth'):
+	add_virtual_cmd = ['ip','link','add',name,'type',iface_type]
+
+	subprocess.call(' '.join(add_virtual_cmd),shell=True,stdout=subprocess.DEVNULL)
+
+def add_gre_tunnel(tunnel_name,local,remote):
+
+	add_gre_tunnel_cmd = ['ip','tunnel',tunnel_name,'mode','gre','remote',remote,'local',local,'ttl 5']
+	
+	subprocess.call(' '.join(add_gre_tunnel_cmd),shell=True,stdout=subprocess.DEVNULL)
+	
+	
+
+def add_ip_addr(address,cidr,interface):
+	add_ip_cmd = ['ip addr','add','{}/{}'.format(address,cidr),'dev',interface]
+
+	subprocess.call(' '.join(add_ip_cmd),shell=True,stdout=subprocess.DEVNULL)
+
+def set_interface_state(interface,state='up'):
+	interface_state_cmd = ['ip','link','set',interface,state]
+
+	subprocess.call(' '.join(interface_state_cmd),shell=True,stdout=subprocess.DEVNULL)
+
+def add_ip_route(addr,cidr,interface):
+	add_route_cmd = ['ip','route','add','{}/{}'.format(addr,cidr),'dev',interface]
+
+	subprocess.call(' '.join(add_route_cmd),shell=True,stdout=subprocess.DEVNULL)
+
+
+def remove_tunnel(tunnel_name='gre-tun'):
+	set_interface_state(tunnel_name,'down')
+
+	del_tunnel_cmd = ['ip','tunnel','del',tunnel_name]
+
+	subprocess.call(' '.join(del_tunnel_cmd),shell=True,stdout=subprocess.DEVNULL)
+
+def remove_virtual_interface(interface_name):
+	set_interface_state(interface_name,'down')
+
+	del_virtual_cmd = ['ip','link','del',interface_name]
+
+	subprocess.call(' '.join(del_virtual_cmd),shell=True,stdout=subprocess.DEVNULL)	
+
+
+def pre_start(app):
+
+	load_gre_module()
+	
+	# Setup an internal server interface
+	add_virtual_interface('srv-int')
+	add_ip_addr(app['metadata']['local-srv'],'30','srv-int')
+	set_interface_state('srv-int','up')	
+		
+	tunnels = app['metadata']['tunnels']
+		
+	for tunnel in tunnels:
+		add_gre_tunnel(tunnel['name'],
+				tunnel['local'],tunnel['remote'])
+
+		add_ip_addr(tunnel['tun-addr'],tunnel['tun-cidr'],tunnel['name'])		
+		set_interface_state(tunnel['name'],'up')
+
+		# Add route to remote server
+		add_ip_route(tunnel['remote-srv'],'32',tunnel['name'])
+
+
+def cleanup(app):
+	
+	remove_virtual_interface('srv-int')
+	
+	# Remove all the tunnels
+	for tunnel in tunnels:
+		remove_tunnel(tunnel['name'])
+
+def main():
+
+	if len(sys.argv) != 2:			
+		sys.exit(1)
+	
+	raw = sys.stdin.read()
+
+	if sys.argv[1] == 'pre-start':
+		exp = json.loads(raw)		
+		experiment_name = exp['spec']['experimentName']
+
+		app = extract_app(exp)	
+
+		if app is None:
+			print(raw)
+			sys.exit(0)		
+			
+		pre_start(app)
+
+	elif sys.argv[1] == 'cleanup':
+
+		exp = json.loads(raw)		
+		experiment_name = exp['spec']['experimentName']
+
+		app = extract_app(exp)	
+
+		if app is None:
+			print(raw)
+			sys.exit(0)
+
+		cleanup(app)
+		print(raw)
+		sys.exit(0)
+	
+	
+	print(raw)
+
+if __name__ == '__main__':
+	main()
+	
+	
+	
+		
+	
+
+

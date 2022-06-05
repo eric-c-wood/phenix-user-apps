@@ -1,0 +1,19 @@
+apiVersion: phenix.sandia.gov/v2
+kind: Scenario
+metadata:
+    name: GRETest
+    annotations:
+        topology: SerialTest
+spec:
+  apps:    
+    - name: add-gre-tunnels
+      metadata: 
+         local-srv: 192.168.50.2         
+         tunnels:
+             - name: tun0
+               local: 192.168.40.1
+               remote: 192.168.40.2
+               tun-addr: 192.168.50.1
+               tun-cidr: 30
+               remote-srv: 192.168.60.2
+     

@@ -1,0 +1,75 @@
+#!/usr/bin/env python3
+
+import sys
+import json
+import subprocess
+import re
+
+def write_file(output_path, data):
+	with open(output_path,'w') as output_file:
+		output_file.write(data)
+
+def extract_app(exp,name='all-tap-mirror'):
+	apps = exp['spec']['scenario']['apps']
+
+	for app in apps:
+		if app['name'] == name:
+			return app
+	
+
+def create_ovs_mirror(vm_mirror,tap_name):
+
+	create_mirror_cmd = ['ovs-vsctl','--','--id=@p','get port',tap_name,'--','--id=@m','create mirror','name={}_mirror'.format(vm_mirror),'select-all=true','output-port=@p','--','set bridge','phenix','mirrors=@m']
+	
+	subprocess.call(' '.join(create_mirror_cmd),shell=True,stdout=subprocess.DEVNULL)
+	
+def remove_mirror():
+		
+	clear_mirror_cmd = ['ovs-vsctl','clear','bridge','phenix','mirrors']
+	subprocess.call(' '.join(clear_mirror_cmd),shell=True)
+
+def post_start(expName,vm_mirror):
+
+	# Find the port name
+	cmd = ['/opt/minimega/bin/minimega','-e','namespace',expName,'.filter','name~{}'.format(vm_mirror),'.columns','name,tap','vm info']
+	tap_name = subprocess.check_output(' '.join(cmd),shell=True).decode('utf8').split('\n')[1].split('|')[-1]
+	tap_name = re.sub('[\[\]]',"",tap_name).strip()
+
+	create_ovs_mirror(vm_mirror,tap_name)
+	write_file('/tmp/dump.txt',repr(tap_name))
+	
+
+def main():
+
+	if len(sys.argv) != 2:			
+		sys.exit(1)
+	
+	raw = sys.stdin.read()
+
+	if sys.argv[1] == 'post-start':
+		exp = json.loads(raw)		
+		experiment_name = exp['spec']['experimentName']
+
+		app = extract_app(exp)	
+		vm_mirror = app['metadata']['VM Mirror']
+		post_start(experiment_name,vm_mirror)
+
+		print(raw)
+		sys.exit(0)
+	elif sys.argv[1] == 'cleanup':
+		remove_mirror()
+		print(raw)
+		sys.exit(0)
+	
+	
+	print(raw)
+
+if __name__ == '__main__':
+	main()
+	
+	
+	
+		
+	
+
+
