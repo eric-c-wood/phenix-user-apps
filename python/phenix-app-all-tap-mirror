@@ -17,15 +17,16 @@ def extract_app(exp,name='all-tap-mirror'):
 			return app
 	
 
-def create_ovs_mirror(vm_mirror,tap_name):
+def create_ovs_mirror(exp_name,tap_name):
 
-	create_mirror_cmd = ['ovs-vsctl','--','--id=@p','get port',tap_name,'--','--id=@m','create mirror','name={}_mirror'.format(vm_mirror),'select-all=true','output-port=@p','--','set bridge','phenix','mirrors=@m']
+	create_mirror_cmd = ['ovs-vsctl','--','--id=@p','get port',tap_name,'--','--id=@m','create mirror','name={}_mirror'.format(exp_name),'select-all=true','output-port=@p','--','set bridge','phenix','mirrors=@m']
 	
 	subprocess.call(' '.join(create_mirror_cmd),shell=True,stdout=subprocess.DEVNULL)
 	
-def remove_mirror():
+def remove_mirror(exp_name):
 		
-	clear_mirror_cmd = ['ovs-vsctl','clear','bridge','phenix','mirrors']
+	clear_mirror_cmd = ['ovs-vsctl','--','--id=@m','get Mirror','{}_mirror'.format(exp_name),'--','remove bridge','phenix','mirrors @m']
+
 	subprocess.call(' '.join(clear_mirror_cmd),shell=True)
 
 def post_start(expName,vm_mirror):
@@ -35,7 +36,7 @@ def post_start(expName,vm_mirror):
 	tap_name = subprocess.check_output(' '.join(cmd),shell=True).decode('utf8').split('\n')[1].split('|')[-1]
 	tap_name = re.sub('[\[\]]',"",tap_name).strip()
 
-	create_ovs_mirror(vm_mirror,tap_name)
+	create_ovs_mirror(expName,tap_name)
 	write_file('/tmp/dump.txt',repr(tap_name))
 	
 
@@ -57,7 +58,9 @@ def main():
 		print(raw)
 		sys.exit(0)
 	elif sys.argv[1] == 'cleanup':
-		remove_mirror()
+		exp = json.loads(raw)		
+		experiment_name = exp['spec']['experimentName']
+		remove_mirror(experiment_name)
 		print(raw)
 		sys.exit(0)
 	
