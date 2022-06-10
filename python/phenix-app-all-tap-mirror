@@ -9,17 +9,36 @@ def write_file(output_path, data):
 	with open(output_path,'w') as output_file:
 		output_file.write(data)
 
+def get_vlans(exp):
+	output = []
+	vlans = exp['status']['vlans']
+
+	for vlan in vlans:
+		output.append(str(vlans[vlan]))
+	
+
+	if len(output) > 1:
+		return "[{}]".format(','.join(output))
+
+	return output[0]
+
 def extract_app(exp,name='all-tap-mirror'):
 	apps = exp['spec']['scenario']['apps']
 
 	for app in apps:
 		if app['name'] == name:
 			return app
-	
 
-def create_ovs_mirror(exp_name,tap_name):
+def create_ovs_mirror(exp_name,vlans,tap_name):
 
-	create_mirror_cmd = ['ovs-vsctl','--','--id=@p','get port',tap_name,'--','--id=@m','create mirror','name={}_mirror'.format(exp_name),'select-all=true','output-port=@p','--','set bridge','phenix','mirrors=@m']
+	create_mirror_cmd = ['ovs-vsctl','--','--id=@p',
+			'get port',tap_name,'--','--id=@m',
+			'create mirror',
+			'name={}_mirror'.format(exp_name),
+			'select-all=true',
+			'select-vlan={}'.format(vlans),
+			'output-port=@p','--',
+			'add bridge','phenix','mirrors @m']
 	
 	subprocess.call(' '.join(create_mirror_cmd),shell=True,stdout=subprocess.DEVNULL)
 	
@@ -29,15 +48,16 @@ def remove_mirror(exp_name):
 
 	subprocess.call(' '.join(clear_mirror_cmd),shell=True)
 
-def post_start(expName,vm_mirror):
+def post_start(exp,expName,vm_mirror):
 
 	# Find the port name
 	cmd = ['/opt/minimega/bin/minimega','-e','namespace',expName,'.filter','name~{}'.format(vm_mirror),'.columns','name,tap','vm info']
 	tap_name = subprocess.check_output(' '.join(cmd),shell=True).decode('utf8').split('\n')[1].split('|')[-1]
 	tap_name = re.sub('[\[\]]',"",tap_name).strip()
 
-	create_ovs_mirror(expName,tap_name)
-	write_file('/tmp/dump.txt',repr(tap_name))
+	vlans = get_vlans(exp)
+	create_ovs_mirror(expName,vlans,tap_name)
+	write_file('/tmp/dump.txt',repr(vlans))
 	
 
 def main():
@@ -52,8 +72,8 @@ def main():
 		experiment_name = exp['spec']['experimentName']
 
 		app = extract_app(exp)	
-		vm_mirror = app['metadata']['VM Mirror']
-		post_start(experiment_name,vm_mirror)
+		vm_mirror = app['metadata']['vm-mirror']
+		post_start(exp,experiment_name,vm_mirror)
 
 		print(raw)
 		sys.exit(0)
