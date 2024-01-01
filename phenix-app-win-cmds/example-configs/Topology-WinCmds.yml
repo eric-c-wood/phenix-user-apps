@@ -1,0 +1,83 @@
+apiVersion: phenix.sandia.gov/v1
+kind: Topology
+metadata:
+    name: WinCmds 
+spec:
+    nodes:
+        - advanced:
+            qemu-append: -no-kvm
+          general:
+            hostname: WinXP
+            snapshot: true
+          hardware:
+            drives:
+                - image: /phenix/images/winxp_test.qcow2
+                  inject_partition: 1
+            memory: 2048
+            os_type: windows
+          labels:
+            win-xp-cmds: win-hostname,winxp-networking
+          network:
+            interfaces:
+                - address: 192.168.5.3
+                  gateway: 192.168.5.1
+                  mac: 00:02:01:20:30:5f
+                  mask: 24
+                  name: eth0
+                  proto: static
+                  type: ethernet
+                  vlan: int_a
+                - address: 192.168.5.4
+                  gateway: 192.168.5.1
+                  mac: 00:02:01:20:30:5e
+                  mask: 24
+                  name: eth2
+                  proto: static
+                  type: ethernet
+                  vlan: int_b
+            routes:
+                - cost: 1
+                  destination: 192.168.80.5/24
+                  next: 192.168.5.1
+          overrides: []
+          type: VirtualMachine
+        - advanced:
+            qemu-append: -no-kvm
+          general:
+            hostname: Win7
+            snapshot: true
+          hardware:
+            drives:
+                - image: /phenix/images/win7.qcow2
+                  inject_partition: 1
+            memory: 4096
+            os_type: windows
+          labels:
+            win-7-cmds: win-hostname,win7-networking
+          network:
+            interfaces:
+                - address: 192.168.10.3
+                  gateway: 192.168.10.1
+                  mac: 00:02:01:20:30:5a
+                  mask: 24
+                  name: eth0
+                  proto: static
+                  type: ethernet
+                  vlan: int_z
+                - address: 192.168.10.4
+                  gateway: 192.168.10.1
+                  mac: 00:02:01:20:30:5b
+                  mask: 24
+                  name: eth2
+                  proto: static
+                  type: ethernet
+                  vlan: int_z
+            routes:
+                - cost: 1
+                  destination: 192.168.80.5/24
+                  next: 192.168.10.1
+                - cost: 1
+                  destination: 192.168.60.5/24
+                  next: 192.168.10.1
+          overrides: []
+          type: VirtualMachine

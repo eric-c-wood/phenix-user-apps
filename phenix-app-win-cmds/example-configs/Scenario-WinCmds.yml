@@ -1,0 +1,12 @@
+apiVersion: phenix.sandia.gov/v2
+kind: Scenario
+metadata:
+    name: WinCmds   
+    annotations:
+        topology: WinCmds
+spec:
+    apps:
+        - metadata:
+            template_directory: /phenix/mako/win-cmds
+          name: win-cmds
+        

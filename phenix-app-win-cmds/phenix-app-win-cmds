@@ -1,0 +1,232 @@
+#!/usr/bin/env python3
+
+import sys
+import json
+import os
+import random
+import mako.template
+
+def write_file(output_path, data):
+
+    mode = 'w'
+
+    if os.path.exists(output_path):
+        mode = 'a'
+
+    with open(output_path,mode) as output_file:
+        output_file.write(data)
+
+def delete_file(file_path):
+    if os.path.exists(file_path):
+        os.remove(file_path)
+
+def extract_app(exp,name='win-cmds'):
+    apps = exp['spec']['scenario']['apps']
+
+    for app in apps:
+        if app['name'] == name:
+            return app
+
+def extract_node(exp,node_name):
+    nodes = exp['spec']['topology']['nodes']
+
+    for node in nodes:
+        if node_name == node['general']['hostname']:
+            return node
+
+    return None
+
+def add_inject(node,inject):    
+
+    if node.get('injections', None):
+        # If the inject already exists, do not add 
+        # again
+        for i in node['injections']:
+            if i['dst'] == inject['dst']:
+                return
+
+        node['injections'].append(inject)
+
+    else:
+        node['injections'] = [inject]
+
+def remove_injects(node,match='/phenix'):    
+    
+    indices_to_remove = []
+
+    for i in range(0,len(node['injections'])):
+        if match in node['injections'][i]['src']:
+            indices_to_remove.append(i)
+
+    if len(indices_to_remove) > 0:
+        new_injects = []
+        for i in range(0,len(node['injections'])):
+            if i in indices_to_remove:
+                continue
+            new_injects.append(node['injections'][i])
+
+        node['injections'] = new_injects
+
+
+def pre_start(exp,template_directory='/phenix/mako/win-cmds'):
+
+    nodes = exp['spec']['topology']['nodes']  
+    
+
+    delete_file("/tmp/win-cmd.log")
+
+   
+    for node in nodes:
+
+        command_list = []
+        win_type = ""
+        template_list = []
+
+        if node['hardware']['os_type'] == 'windows':
+
+            # Skip any nodes that will not be booted
+            if node['general']['do_not_boot']:
+                continue
+
+            # Look for any defined labels
+            if 'labels' not in node:
+                continue
+
+            for label in node['labels']:
+                if 'win' in label:                    
+                    win_type = label.split('-')[1]
+                    template_list = node['labels'][label].split(',')
+                    break
+
+            
+            # Remove any default injections or injections from previous experiment iterations
+            remove_injects(node,'phenix')
+            remove_injects(node,'Startup')
+
+            # render each defined template
+            for template in template_list:
+                template_path = os.path.join(template_directory,"{}.mako".format(template))
+
+                if not os.path.exists(template_path):
+                    continue
+                    
+                win_cmd_template = mako.template.Template(filename=template_path)
+
+                # render the template passing in the node
+                rendered_cmds = win_cmd_template.render(node=node)
+
+                write_file('/tmp/win-cmd.log',repr(rendered_cmds))
+
+                # add the commands from the rendered template to the command list
+                rendered_cmd_list = [x for x in rendered_cmds.split('\n') if len(x) > 0]
+                command_list = command_list + rendered_cmd_list
+                
+            
+            # Once all templates are rendered and all commands are collected, render the final
+            # template to run the batch of commands at startup.  Different window versions
+            # place the startup folder in different locations
+
+            # Make sure some commands were collected
+            if len(command_list) == 0:
+                write_file('/tmp/win-cmd.log',"command list is empty\n")
+                return
+
+            win_startup_path = ""
+
+            if win_type == 'xp':
+                win_startup_path = "Documents and Settings/All Users/Start Menu/Programs/Startup"
+
+            elif win_type == '7':
+                win_startup_path = "ProgramData/Microsoft/Windows/Start Menu/Programs/Startup"
+
+            elif win_type == '8':
+                win_startup_path = "ProgramData/Microsoft/Windows/Start Menu/Programs/Startup"
+
+            elif win_type == '10':
+                win_startup_path = "ProgramData/Microsoft/Windows/Start Menu/Programs/Startup"
+            else:
+                write_file('/tmp/win-cmd.log',"windows operating system {} not supported\n".format(win_type))
+                return            
+
+            src_path = os.path.join(exp['spec']['baseDir'],'startup')
+            src_path = os.path.join(src_path,"{}-startup.cmd".format(node['general']['hostname']))
+
+            kwargs = {
+                    'src':src_path,
+                    'dst':'{}/{}'.format(win_startup_path,"startup.cmd"),
+                    'permissions':'0755',
+                    'description':'Window startup commands'
+                }
+
+            add_inject(node,inject=kwargs)
+
+            # Delete the injected startup file            
+            command_list.append('del "C:\\{}\\{}"'.format(win_startup_path.replace('/','\\'),"startup.cmd"))
+
+            # Combine reboot command
+            command_list = combine_reboot_cmds(command_list)
+
+            # Write the final template
+            delete_file(src_path)
+            write_file(src_path,' && '.join(command_list))
+
+def combine_reboot_cmds(command_list):
+
+    if len(command_list) == 0:
+        return
+
+    indices_to_remove = []    
+
+    for i in range(0,len(command_list)):
+        if "shutdown" in command_list[i]:
+            indices_to_remove.append(i)
+
+    if len(indices_to_remove) == 0:
+        return command_list
+    
+    new_command_list = []
+
+    for i in range(0,len(command_list)):
+        if i in indices_to_remove:
+            continue
+        new_command_list.append(command_list[i])
+
+    # Add the reboot command at the end
+    new_command_list.append('shutdown /r /t 0')
+
+    return new_command_list
+
+    
+
+
+def main():
+
+    if len(sys.argv) != 2:
+        sys.exit(1)
+
+    raw = sys.stdin.read()
+
+    if sys.argv[1] == 'pre-start':
+        exp = json.loads(raw)
+        app = extract_app(exp,"win-cmds")
+        if 'metadata' in app:
+            template_directory = app['metadata'].get('template-directory','/phenix/mako/win-cmds')
+            pre_start(exp,template_directory)
+        else:
+            pre_start(exp)
+
+        print(json.dumps(exp))
+        sys.exit(0)
+
+    print(raw)
+    sys.exit(0)
+
+if __name__ == '__main__':
+    main()
+	
+	 
+	
+		
+	
+
+
