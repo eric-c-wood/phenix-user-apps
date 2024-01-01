@@ -1,0 +1,14 @@
+apiVersion: phenix.sandia.gov/v2
+kind: Scenario
+metadata:
+    name: Auto-UI-Test    
+    annotations:
+        topology: Auto-UI-Test
+spec:
+    apps:
+        - metadata:
+            template_directory: /phenix/mako
+          name: centos-interface-config
+        - metadata:
+            template_directory: /phenix/mako
+          name: autoui
