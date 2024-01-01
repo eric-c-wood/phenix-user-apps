@@ -1,0 +1,42 @@
+name: Configure-Networks
+description: Configure all network related options for Windows XP
+author: Anonymous
+scripts:
+    - name: IPv4-Address-Configuration
+      description: Configure ipv4 address per interface
+      actions:
+          - name: wait-until
+            parameters:
+                - vm-name: WinXP
+                - reference-image: newHardwareRef.png
+                - timeout: 5m
+          - name: sleep
+            parameters:
+                - timeout: 2s
+          - name: send-special-keys
+            parameters:
+                - vm-name: WinXP
+                - keys: Tab Tab Return
+          - name: wait-until
+            parameters:
+                - vm-name: WinXP
+                - reference-image: newHardwareRef.png
+                - timeout: 5m
+          - name: sleep
+            parameters:
+                - timeout: 2s
+          - name: send-special-keys
+            parameters:
+                - vm-name: WinXP
+                - keys: Tab Tab Return
+          - name: gui-terminal-commands
+            parameters:
+                - vm-name: WinXP
+                - os: WinXP
+                - terminal-window-image: termWinXPWindow.png
+                - desktop-image: startButton_2560x1600.png
+                - commands: 
+                      - 'netsh interface ip set address name="Local Area Connection" static addr=192.168.1.2 mask=255.255.255.0'
+                      - 'netsh interface ip set address name="Local Area Connection 2" static addr=192.168.1.3 mask=255.255.255.0'
+                      - 'ipconfig /all'
+

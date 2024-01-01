@@ -1,0 +1,23 @@
+name: Configure-Win7-Networks
+description: Configure all network related options for Windows 7
+author: Anonymous
+scripts:
+    - name: IPv4-Address-Configuration
+      description: Configure ipv4 address per interface
+      actions:          
+          - name: gui-terminal-commands
+            parameters:
+                - vm-name: {{ .General.Hostname }}
+                - os: win7
+                - terminal-window-image: win7_term_window.png
+                - desktop-image: win7_start_btn.png
+                - commands: 
+                  {{ range $idx , $iface := .Network.Interfaces }}
+                      {{ if eq $idx 0 }}
+                      - 'netsh interface ipv4 set address name="Local Area Connection" static {{ $iface.Address }} {{ cidrToMask (print $iface.Address "/" $iface.Mask) }}'  
+                      {{ else }}
+                      - 'netsh interface ipv4 set address name="Local Area Connection {{ addInt $idx 1 }}" static {{ $iface.Address }} {{ cidrToMask (print $iface.Address "/" $iface.Mask) }}'  
+                      {{ end }}                    
+                  {{ end }}
+                      - 'ipconfig /all'
+

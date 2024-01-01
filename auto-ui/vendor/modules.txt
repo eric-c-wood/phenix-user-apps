@@ -1,0 +1,30 @@
+# github.com/activeshadow/libminimega v0.0.0-20230607190319-9d6487572f76
+## explicit
+github.com/activeshadow/libminimega/minicli
+github.com/activeshadow/libminimega/miniclient
+github.com/activeshadow/libminimega/minilog
+github.com/activeshadow/libminimega/minipager
+github.com/activeshadow/libminimega/ranges
+# github.com/hashicorp/errwrap v1.0.0
+## explicit
+github.com/hashicorp/errwrap
+# github.com/hashicorp/go-multierror v1.0.0
+## explicit
+github.com/hashicorp/go-multierror
+# github.com/mattn/go-runewidth v0.0.9
+## explicit; go 1.9
+github.com/mattn/go-runewidth
+# github.com/peterh/liner v1.1.0
+## explicit
+github.com/peterh/liner
+# gocv.io/x/gocv v0.33.0
+## explicit; go 1.13
+gocv.io/x/gocv
+# gopkg.in/yaml.v3 v3.0.1
+## explicit
+gopkg.in/yaml.v3
+# phenix v0.0.0-00010101000000-000000000000 => github.com/sandialabs/sceptre-phenix/src/go v0.0.0-20231207195356-afb3cd0934b4
+## explicit; go 1.20
+phenix/util/common
+phenix/util/mm/mmcli
+# phenix => github.com/sandialabs/sceptre-phenix/src/go v0.0.0-20231207195356-afb3cd0934b4

@@ -1,0 +1,25 @@
+name: Linux-Terminal
+description: Send commands to non-ui linux terminal
+author: Anonymous
+scripts:
+    - name: Linux-Commands
+      description: Send linux terminal commands
+      actions:
+          - name: login-linux
+            parameters:
+                - vm-name: Centos7a
+                - linux-login-prompt: linux-login.png
+                - linux-after-login-prompt: linux-prompt.png
+                - timeout: "30m"
+                - threshold: "0.99"
+                - user-name: test
+                - password: test       
+          - name: linux-terminal-commands
+            parameters:
+                - vm-name: Centos7a
+                - os: centos                
+                - commands: 
+                      - 'ls -alht'
+                      - 'ip addr'
+                      - 'cat /etc/hosts'                     
+

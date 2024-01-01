@@ -1,0 +1,47 @@
+name: Configure-Networks
+description: Configure all network related options for Windows XP
+author: Anonymous
+scripts:
+    - name: IPv4-Address-Configuration
+      description: Configure ipv4 address per interface
+      actions:
+          - name: wait-until
+            parameters:
+                - vm-name: {{ .General.Hostname }}
+                - reference-image: newHardwareRef.png
+                - timeout: 5m
+          - name: sleep
+            parameters:
+                - timeout: 2s
+          - name: send-special-keys
+            parameters:
+                - vm-name: {{ .General.Hostname }}
+                - keys: Tab Tab Return
+          - name: wait-until
+            parameters:
+                - vm-name: {{ .General.Hostname }}
+                - reference-image: newHardwareRef.png
+                - timeout: 5m
+          - name: sleep
+            parameters:
+                - timeout: 2s
+          - name: send-special-keys
+            parameters:
+                - vm-name: {{ .General.Hostname }}
+                - keys: Tab Tab Return
+          - name: gui-terminal-commands
+            parameters:
+                - vm-name: {{ .General.Hostname }}
+                - os: WinXP
+                - terminal-window-image: termWinXPWindow.png
+                - desktop-image: startButton_2560x1600.png
+                - commands: 
+                  {{ range $idx , $iface := .Network.Interfaces }}
+                      {{ if eq $idx 0 }}
+                      - 'netsh interface ip set address name="Local Area Connection" static addr={{ $iface.Address }} mask={{ cidrToMask (print $iface.Address "/" $iface.Mask) }}'  
+                      {{ else }}
+                      - 'netsh interface ip set address name="Local Area Connection {{ addInt $idx 1 }}" static addr={{ $iface.Address }} mask={{ cidrToMask (print $iface.Address "/" $iface.Mask) }}'  
+                      {{ end }}                    
+                  {{ end }}
+                      - 'ipconfig /all'
+
