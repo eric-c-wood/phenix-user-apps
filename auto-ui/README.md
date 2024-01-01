@@ -11,7 +11,7 @@ The auto-ui app sends a linear list of commands/actions to one or more virtual m
 **sleep**: Pauses execution of the list of commands/actions for a user defined period of time. (i.e the `timeout` parameter)  
 **wait-until**: Pauses execution of the list of commands/actions until a reference image (i.e. the `reference-image` parameter)
 
-#### comming soon
+#### coming soon
 
 **send-kb-shortcut**: Used to emulate combination key presses (i.e. `CTRL+ALT+DELETE`, `ALT_L+ENTER`)
 **click-image**: Clicks the center of a reference image  
