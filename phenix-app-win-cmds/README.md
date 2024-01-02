@@ -1,6 +1,6 @@
 ## win-cmds
 
-Aggregates a collection of windows commands into one batch script to ran when the virtual machine boots.  Each set of commands is described using Python's mako library.  Any reboot commands are added at the end of the batch. 
+Aggregates a collection of windows commands into one batch script to be ran when the virtual machine boots.  Each set of commands is described using Python's mako library.  Any reboot commands are added at the end of the batch. 
 
 ### configuration
 
