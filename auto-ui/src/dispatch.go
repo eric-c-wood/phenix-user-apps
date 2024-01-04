@@ -1,12 +1,9 @@
 package main
 
 import (
-	//"bufio"
 	"fmt"
 	"path/filepath"
 	"time"
-	//"os"
-	//gopkg.in/yaml.v3"
 )
 
 func parseSendSpecialKeys(expName string, parameters []interface{}) error {
@@ -328,6 +325,223 @@ func parseLinuxTermCommand(expName string, parameters []interface{}) error {
 	return nil
 }
 
+func parseKBShortcut(expName string, parameters []interface{}) error {
+
+	var (
+		vmName   string
+		shortcut string
+	)
+
+	for _, param := range parameters {
+
+		if _, ok := param.(map[string]interface{}); !ok {
+			ErrorLogger.Println("Unexpected Type for parameter")
+			continue
+		}
+
+		for k, v := range param.(map[string]interface{}) {
+
+			switch k {
+
+			case "vm-name":
+				vmName, _ = v.(string)
+			case "shortcut":
+				shortcut, _ = v.(string)
+
+			}
+
+		}
+	}
+
+	InfoLogger.Printf("Shortcut command:%v", shortcut)
+
+	if len(vmName) == 0 {
+		ErrorLogger.Println("vm name has a length of zero")
+		return fmt.Errorf("vm name has a length of zero")
+	}
+
+	if len(shortcut) == 0 {
+		ErrorLogger.Println("there are no shortcuts to send")
+		return fmt.Errorf("there are no shortcuts to send")
+	}
+
+	sendKBShortcut(expName, vmName, shortcut)
+
+	return nil
+}
+
+func parseClickImage(expName string, parameters []interface{}) error {
+
+	var (
+		vmName         string
+		referenceImage string
+	)
+
+	for _, param := range parameters {
+
+		if _, ok := param.(map[string]interface{}); !ok {
+			ErrorLogger.Println("Unexpected Type for parameter")
+			continue
+		}
+
+		for k, v := range param.(map[string]interface{}) {
+
+			switch k {
+
+			case "vm-name":
+				vmName, _ = v.(string)
+			case "reference-image":
+				referenceImage, _ = v.(string)
+
+			}
+
+		}
+	}
+
+	if len(vmName) == 0 {
+		ErrorLogger.Println("vm name has a length of zero")
+		return fmt.Errorf("vm name has a length of zero")
+	}
+
+	if len(referenceImage) == 0 {
+		ErrorLogger.Println("no reference image has been specified")
+		return fmt.Errorf("no reference image has been specified")
+	}
+
+	clickImage(1, expName, vmName, referenceImage)
+
+	return nil
+}
+
+func parseRightClickImage(expName string, parameters []interface{}) error {
+
+	var (
+		vmName         string
+		referenceImage string
+	)
+
+	for _, param := range parameters {
+
+		if _, ok := param.(map[string]interface{}); !ok {
+			ErrorLogger.Println("Unexpected Type for parameter")
+			continue
+		}
+
+		for k, v := range param.(map[string]interface{}) {
+
+			switch k {
+
+			case "vm-name":
+				vmName, _ = v.(string)
+			case "reference-image":
+				referenceImage, _ = v.(string)
+
+			}
+
+		}
+	}
+
+	if len(vmName) == 0 {
+		ErrorLogger.Println("vm name has a length of zero")
+		return fmt.Errorf("vm name has a length of zero")
+	}
+
+	if len(referenceImage) == 0 {
+		ErrorLogger.Println("no reference image has been specified")
+		return fmt.Errorf("no reference image has been specified")
+	}
+
+	rightClickImage(expName, vmName, referenceImage)
+
+	return nil
+}
+
+func parseDoubleClickImage(expName string, parameters []interface{}) error {
+
+	var (
+		vmName         string
+		referenceImage string
+	)
+
+	for _, param := range parameters {
+
+		if _, ok := param.(map[string]interface{}); !ok {
+			ErrorLogger.Println("Unexpected Type for parameter")
+			continue
+		}
+
+		for k, v := range param.(map[string]interface{}) {
+
+			switch k {
+
+			case "vm-name":
+				vmName, _ = v.(string)
+			case "reference-image":
+				referenceImage, _ = v.(string)
+
+			}
+
+		}
+	}
+
+	if len(vmName) == 0 {
+		ErrorLogger.Println("vm name has a length of zero")
+		return fmt.Errorf("vm name has a length of zero")
+	}
+
+	if len(referenceImage) == 0 {
+		ErrorLogger.Println("no reference image has been specified")
+		return fmt.Errorf("no reference image has been specified")
+	}
+
+	doubleClickImage(1, expName, vmName, referenceImage)
+
+	return nil
+}
+
+func parseMoveToImage(expName string, parameters []interface{}) error {
+
+	var (
+		vmName         string
+		referenceImage string
+	)
+
+	for _, param := range parameters {
+
+		if _, ok := param.(map[string]interface{}); !ok {
+			ErrorLogger.Println("Unexpected Type for parameter")
+			continue
+		}
+
+		for k, v := range param.(map[string]interface{}) {
+
+			switch k {
+
+			case "vm-name":
+				vmName, _ = v.(string)
+			case "reference-image":
+				referenceImage, _ = v.(string)
+
+			}
+
+		}
+	}
+
+	if len(vmName) == 0 {
+		ErrorLogger.Println("vm name has a length of zero")
+		return fmt.Errorf("vm name has a length of zero")
+	}
+
+	if len(referenceImage) == 0 {
+		ErrorLogger.Println("no reference image has been specified")
+		return fmt.Errorf("no reference image has been specified")
+	}
+
+	moveMouseTo(expName, vmName, referenceImage)
+
+	return nil
+}
+
 func processConfig(expName, filePath string) error {
 
 	playbook, err := readConfig(filePath)
@@ -348,12 +562,32 @@ func processConfig(expName, filePath string) error {
 
 			switch action.Name {
 
+			case "click-image":
+				if err := parseClickImage(expName, action.Parameters.([]interface{})); err != nil {
+					return fmt.Errorf("%v", err)
+				}
+			case "double-click-image":
+				if err := parseDoubleClickImage(expName, action.Parameters.([]interface{})); err != nil {
+					return fmt.Errorf("%v", err)
+				}
 			case "linux-terminal-commands":
 				if err := parseLinuxTermCommand(expName, action.Parameters.([]interface{})); err != nil {
 					return fmt.Errorf("%v", err)
 				}
 			case "login-linux":
 				if err := parseLoginLinux(expName, action.Parameters.([]interface{})); err != nil {
+					return fmt.Errorf("%v", err)
+				}
+			case "move-to-image":
+				if err := parseMoveToImage(expName, action.Parameters.([]interface{})); err != nil {
+					return fmt.Errorf("%v", err)
+				}
+			case "right-click-image":
+				if err := parseRightClickImage(expName, action.Parameters.([]interface{})); err != nil {
+					return fmt.Errorf("%v", err)
+				}
+			case "send-kb-shortcut":
+				if err := parseKBShortcut(expName, action.Parameters.([]interface{})); err != nil {
 					return fmt.Errorf("%v", err)
 				}
 			case "send-special-keys":

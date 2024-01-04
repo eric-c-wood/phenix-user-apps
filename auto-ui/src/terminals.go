@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"strings"
-	//"time"
 )
 
 func openKaliTerminal(expName string, termCommand *termCommand) error {

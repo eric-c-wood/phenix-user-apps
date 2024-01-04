@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	//"image"
 	"path/filepath"
 	"strconv"
 	"strings"
