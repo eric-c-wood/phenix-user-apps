@@ -5,14 +5,14 @@
 netsh interface ip set address name="Local Area Connection" static ${interface['address']} ${cidr_to_netmask(interface['mask'])}
 % else:
 <% counter = i + 1 %>
-netsh interface ip set address name="Local Area Connection ${counter}" static ${interface['address']} ${cidr_to_netmask(interface)}
+netsh interface ip set address name="Local Area Connection ${counter}" static ${interface['address']} ${mask_from_interface(interface)}
 % endif
 % endfor
 
 
 % for i in range(0,len(node['network']['routes'])):
 <% route = node['network']['routes'][i] %>
-route -p add ${network_address(route['destination'])} mask ${get_mask(route['destination'])} ${route['next']} metric ${route['cost']}
+route -p add ${network_address(route['destination'])} mask ${mask_from_destination(route['destination'])} ${route['next']} metric ${route['cost']}
 % endfor
 
 <%!
@@ -22,11 +22,11 @@ route -p add ${network_address(route['destination'])} mask ${get_mask(route['des
     interface = None
     route = None
 
-    def cidr_to_netmask(interface): 
+    def mask_from_interface(interface): 
         network = "{}/{}".format(interface['address'],interface['mask'])
         return ipaddress.IPv4Network(network,strict=False).netmask
 
-    def get_mask(destination):         
+    def mask_from_destination(destination):         
         return ipaddress.IPv4Network(destination,strict=False).netmask
 
     def network_address(destination):
