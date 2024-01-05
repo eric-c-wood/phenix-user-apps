@@ -5,7 +5,7 @@
 netsh interface ip set address name="Local Area Connection" static ${interface['address']} ${cidr_to_netmask(interface['mask'])}
 % else:
 <% counter = i + 1 %>
-netsh interface ip set address name="Local Area Connection ${counter}" static ${interface['address']} ${cidr_to_netmask(interface['mask'])}
+netsh interface ip set address name="Local Area Connection ${counter}" static ${interface['address']} ${cidr_to_netmask(interface)}
 % endif
 % endfor
 
@@ -16,23 +16,19 @@ route -p add ${network_address(route['destination'])} mask ${get_mask(route['des
 % endfor
 
 <%!
-    import socket
-    import struct 
     import ipaddress
 
     counter = 0
     interface = None
     route = None
 
-    def cidr_to_netmask(cidr):
-        cidr = int(cidr)
-        bits = 0xffffffff ^ (1 << 32 - cidr) - 1
+    def cidr_to_netmask(interface): 
+        network = "{}/{}".format(interface['address'],interface['mask'])
+        return ipaddress.IPv4Network(network,strict=False).netmask
 
-        return socket.inet_ntoa(struct.pack('>I',bits))
+    def get_mask(destination):         
+        return ipaddress.IPv4Network(destination,strict=False).netmask
 
-    def get_mask(network):        
-        return cidr_to_netmask(network.split('/')[-1])
-    
     def network_address(destination):
 
         return ipaddress.IPv4Network(destination,strict=False).network_address
