@@ -70,14 +70,15 @@ def remove_injects(node,match='/phenix'):
 
 def pre_start(exp,template_directory='/phenix/mako/win-cmds'):
 
-    nodes = exp['spec']['topology']['nodes']  
+    nodes = exp['spec']['topology']['nodes']
+    
     
 
     delete_file("/tmp/win-cmd.log")
 
    
     for node in nodes:
-
+        
         command_list = []
         win_type = ""
         template_list = []
@@ -99,7 +100,7 @@ def pre_start(exp,template_directory='/phenix/mako/win-cmds'):
                     break
 
             
-            # Remove any default injections or injections from previous experiment iterations
+            # Remove any default injections
             remove_injects(node,'phenix')
             remove_injects(node,'Startup')
 
@@ -168,7 +169,7 @@ def pre_start(exp,template_directory='/phenix/mako/win-cmds'):
 
             # Write the final template
             delete_file(src_path)
-            write_file(src_path,' && '.join(command_list))
+            write_file(src_path,'\r\n'.join(command_list))
 
 def combine_reboot_cmds(command_list):
 
