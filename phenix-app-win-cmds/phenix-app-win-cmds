@@ -176,10 +176,14 @@ def combine_reboot_cmds(command_list):
     if len(command_list) == 0:
         return
 
-    indices_to_remove = []    
+    indices_to_remove = []
+    delete_cmd_index = None
 
     for i in range(0,len(command_list)):
         if "shutdown" in command_list[i]:
+            indices_to_remove.append(i)
+        elif "del" in command_list[i]:
+            delete_cmd_index = i
             indices_to_remove.append(i)
 
     if len(indices_to_remove) == 0:
@@ -193,7 +197,10 @@ def combine_reboot_cmds(command_list):
         new_command_list.append(command_list[i])
 
     # Add the reboot command at the end
-    new_command_list.append('shutdown /r /t 0')
+    if delete_cmd_index is not None:
+        new_command_list.append(command_list[delete_cmd_index] + ' & ' + 'shutdown /r /t 0')
+    else:
+        new_command_list.append('shutdown /r /t 0')
 
     return new_command_list
 
